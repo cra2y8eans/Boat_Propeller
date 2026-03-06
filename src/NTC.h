@@ -139,54 +139,54 @@ const uint16_t adc_table[121] = {
 const uint8_t ntc_pcb_pin      = 6;
 const uint8_t ntc_h_bridge_pin = 4;
 
-extern Filter PCB_NTC_Filter;
-extern Filter H_Bridge_NTC_Filter;
+// inline Filter PCB_NTC_Filter;
+// inline Filter H_Bridge_NTC_Filter;
 
 
-/**
- * @brief 根据 ADC 读数计算当前温度（查表 + 线性插值）
- *
- * @param filtedValue 从 ADC 读取的原始值（0~4095）
- * @return float   对应的温度值（摄氏度），若超出范围则返回边界值
- *
- * @note 使用全局数组 adc_table[121]（0~120℃对应的ADC值）
- *       假设数组严格递减（温度越高ADC越小）
- */
-float getTemperature(Filter &filter, uint8_t pin) {
-    float filtedValue = filter.updateMovingAverageRaw(analogRead(pin));
-  // 1. 处理超出测量范围的情况
-  //    如果 ADC 读数大于等于 0℃ 的 ADC 值（3121），说明温度 ≤ 0℃
-  if (filtedValue >= adc_table[0]) {
-    return 0.0f; // 返回下边界 0℃（可根据需要改为外推或返回0）
-  }
-  //    如果 ADC 读数小于等于 120℃ 的 ADC 值（147），说明温度 ≥ 120℃
-  if (filtedValue <= adc_table[120]) {
-    return 120.0f; // 返回上边界 120℃
-  }
+// /**
+//  * @brief 根据 ADC 读数计算当前温度（查表 + 线性插值）
+//  *
+//  * @param filtedValue 从 ADC 读取的原始值（0~4095）
+//  * @return float   对应的温度值（摄氏度），若超出范围则返回边界值
+//  *
+//  * @note 使用全局数组 adc_table[121]（0~120℃对应的ADC值）
+//  *       假设数组严格递减（温度越高ADC越小）
+//  */
+// float getTemperature(Filter &filter, uint8_t pin) {
+//     float filtedValue = filter.updateMovingAverageRaw(analogRead(pin));
+//   // 1. 处理超出测量范围的情况
+//   //    如果 ADC 读数大于等于 0℃ 的 ADC 值（3121），说明温度 ≤ 0℃
+//   if (filtedValue >= adc_table[0]) {
+//     return 0.0f; // 返回下边界 0℃（可根据需要改为外推或返回0）
+//   }
+//   //    如果 ADC 读数小于等于 120℃ 的 ADC 值（147），说明温度 ≥ 120℃
+//   if (filtedValue <= adc_table[120]) {
+//     return 120.0f; // 返回上边界 120℃
+//   }
 
-  // 2. 查找 filtedValue 所在的区间
-  //    因为数组是递减的，我们从 0 开始，找到第一个满足
-  //    adc_table[i] >= filtedValue >= adc_table[i+1] 的 i
-  int i = 0;
-  for (i = 0; i < 120; i++) { // i 从 0 到 119，共 120 个区间
-    // 如果当前 ADC 值落在区间 [adc_table[i], adc_table[i+1]] 内   if (filtedValue > adc_table[i+1] && filtedValue <= adc_table[i])
-    if (filtedValue <= adc_table[i] && filtedValue >= adc_table[i + 1]) {
-      break; // 找到区间，退出循环
-    }
-  }
+//   // 2. 查找 filtedValue 所在的区间
+//   //    因为数组是递减的，我们从 0 开始，找到第一个满足
+//   //    adc_table[i] >= filtedValue >= adc_table[i+1] 的 i
+//   int i = 0;
+//   for (i = 0; i < 120; i++) { // i 从 0 到 119，共 120 个区间
+//     // 如果当前 ADC 值落在区间 [adc_table[i], adc_table[i+1]] 内   if (filtedValue > adc_table[i+1] && filtedValue <= adc_table[i])
+//     if (filtedValue <= adc_table[i] && filtedValue >= adc_table[i + 1]) {
+//       break; // 找到区间，退出循环
+//     }
+//   }
 
-  // 3. 线性插值计算温度
-  //    已知：
-  //      T_low  = i               （区间左端点温度）
-  //      T_high = i+1             （区间右端点温度）
-  //      ADC_low  = adc_table[i]   （左端点 ADC 值，较大）
-  //      ADC_high = adc_table[i+1] （右端点 ADC 值，较小）
-  //    当前 filtedValue 在两者之间，温度可用比例计算：
-  //      T = T_low + (ADC_low - filtedValue) / (ADC_low - ADC_high) * (T_high - T_low)
-  //    由于 T_high - T_low = 1，公式简化为：
-  //      T = i + (adc_table[i] - filtedValue) / (adc_table[i] - adc_table[i+1])
+//   // 3. 线性插值计算温度
+//   //    已知：
+//   //      T_low  = i               （区间左端点温度）
+//   //      T_high = i+1             （区间右端点温度）
+//   //      ADC_low  = adc_table[i]   （左端点 ADC 值，较大）
+//   //      ADC_high = adc_table[i+1] （右端点 ADC 值，较小）
+//   //    当前 filtedValue 在两者之间，温度可用比例计算：
+//   //      T = T_low + (ADC_low - filtedValue) / (ADC_low - ADC_high) * (T_high - T_low)
+//   //    由于 T_high - T_low = 1，公式简化为：
+//   //      T = i + (adc_table[i] - filtedValue) / (adc_table[i] - adc_table[i+1])
 
-  float t = i + (float)(adc_table[i] - filtedValue) / (adc_table[i] - adc_table[i + 1]);
+//   float t = i + (float)(adc_table[i] - filtedValue) / (adc_table[i] - adc_table[i + 1]);
 
-  return t; // 返回插值后的温度
-}
+//   return t; // 返回插值后的温度
+// }

@@ -1,4 +1,5 @@
 #include "motor.h"
+#include "esp_log.h"
 #include <Arduino.h>
 
 #define DIR_BUTTON_PIN 4      // 方向按钮引脚

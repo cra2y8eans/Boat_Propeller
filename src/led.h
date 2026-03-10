@@ -11,17 +11,18 @@
 #define LONG_FLASH_DURATION 500
 #define LONG_FLASH_INTERVAL 500
 
-#define RED 0xFF0000
-#define GREEN 0x00FF00
-#define BLUE 0x0000FF
-#define YELLOW 0xFF2800
-#define WHITE 0xFFFFFF
-#define OFF 0x000000
+#define COLOR_RED 0xFF0000
+#define COLOR_GREEN 0x00FF00
+#define COLOR_BLUE 0x0000FF
+#define COLOR_YELLOW 0xFF2800
+#define COLOR_WHITE 0xFFFFFF
+#define COLOR_OFF 0x000000
 
 // 对外暴露LED对象
 extern Adafruit_NeoPixel sysRGB;
 extern Adafruit_NeoPixel modeRGB;
-extern QueueHandle_t     ledQueue = nullptr;
+
+extern QueueHandle_t ledQueue;
 
 enum sysLedMode {
   STANDBY,

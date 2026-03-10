@@ -1,4 +1,5 @@
 #include "motor.h"
+#include "ESPNOW.h"
 #include "esp_log.h"
 #include <Arduino.h>
 
@@ -8,14 +9,19 @@
 #define MIN_SPEED_CHANGE 20   // 最小可安全切换方向的速度
 #define SPEED_SCALE_FACTOR 10 // 减速比
 
-static const uint8_t  motor_pin          = 2;     // 电机引脚
-static const uint8_t  dir_pin            = 3;     // 转向引脚
-static const uint8_t  motor_channel      = 4;     // 电机PWM通道
-static const uint8_t  resolution         = 8;     // 电机PWM精度
-static const uint16_t frequency          = 15000; // 电机频率
-static const uint8_t  speed_scale_factor = 10;    // 减速比
-static const uint8_t  min_speed_change   = 20;    // 最小可安全切换方向的速度
-static const uint8_t  speed_step         = 10;    // 电机速度变化步长
+static const char*    TAG                   = "motor";
+static const uint8_t  SWITCH_DEBOUNCE_DELAY = 20; // 按键消抖延时，单位毫秒
+static const uint8_t  LOG_TIME_INTERVAL     = 2000;
+static const uint8_t  ON_FOOT_PIN           = 8;
+static const uint8_t  ON_HAND_PIN           = 5;
+static const uint8_t  motor_pin             = 2;     // 电机引脚
+static const uint8_t  dir_pin               = 3;     // 转向引脚
+static const uint8_t  motor_channel         = 4;     // 电机PWM通道
+static const uint8_t  resolution            = 8;     // 电机PWM精度
+static const uint16_t frequency             = 15000; // 电机频率
+static const uint8_t  speed_scale_factor    = 10;    // 减速比
+static const uint8_t  min_speed_change      = 20;    // 最小可安全切换方向的速度
+static const uint8_t  speed_step            = 10;    // 电机速度变化步长
 static int            filtered_duty;
 
 static int  target_speed  = 0;
@@ -28,6 +34,52 @@ void motorInit() {
   ledcAttachPin(motor_pin, motor_channel);         // 将电机引脚绑定到PWM通道
   ledcWrite(motor_channel, 0);                     // 初始占空比为0
   pinMode(dir_pin, OUTPUT);                        // 设置转向引脚为输出模式
+}
+
+
+static ControlMode current_ctrl_mode = FOOT_MODE; // 默认为脚控模式
+static ControlMode last_ctrl_mode    = FOOT_MODE; // 默认为脚控模式
+
+// 消抖读取当前模式
+ControlMode readCurrentModeWithDebounce() {
+  int readHand_1 = digitalRead(ON_HAND_PIN);
+  int readFoot_1 = digitalRead(ON_FOOT_PIN);
+  vTaskDelay(SWITCH_DEBOUNCE_DELAY / portTICK_PERIOD_MS); // 延时20ms，消抖
+  int readHand_2 = digitalRead(ON_HAND_PIN);
+  int readFoot_2 = digitalRead(ON_FOOT_PIN);
+
+  if (readHand_1 != readHand_2 || readFoot_1 != readFoot_2) return last_ctrl_mode; // 如果两次读取的值不一样，说明有抖动，返回上次的模式
+  if (readHand_1 == LOW && readFoot_1 == HIGH) return HAND_MODE;                   // 手控模式
+  if (readHand_1 == HIGH && readFoot_1 == LOW) return FOOT_MODE;                   // 脚控模式
+  if (readHand_1 == HIGH && readFoot_1 == HIGH) return CRUISE_MODE;                // 巡航模式
+
+  return HAND_MODE; // 默认返回手动模式
+}
+
+void modeChange() {
+  if (isFootPadOnline) {
+    current_ctrl_mode = readCurrentModeWithDebounce();
+  } else {
+    current_ctrl_mode                  = STANDBY_MODE; // 如果断线，返回待机模式
+    static unsigned long lastDebugTime = 0;
+    if (millis() - lastDebugTime > LOG_TIME_INTERVAL) { // 每2秒打印一次，避免刷屏
+      ESP_LOGE(TAG, "脚控不在线，返回待机模式");
+      lastDebugTime = millis();
+    }
+  }
+  if (current_ctrl_mode != last_ctrl_mode) {
+    last_ctrl_mode          = current_ctrl_mode;
+    const char* modeNames[] = { "手动模式", "脚控模式", "巡航模式", "待机模式" };
+    ESP_LOGI(TAG, "%s\n", modeNames[current_ctrl_mode]);
+  }
+}
+
+/** 获取当前控制模式
+ * @brief     返回当前的控制模式
+ * @return    当前控制模式（HAND_MODE、FOOT_MODE、CRUISE_MODE、STANDBY_MODE）
+ */
+ControlMode getCurrentCtrlMode() {
+  return current_ctrl_mode;
 }
 
 void motorControl(void* pvParameters) {

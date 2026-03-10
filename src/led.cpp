@@ -2,6 +2,7 @@
 #include "ESPNOW.h"
 #include "buzzer.h"
 #include "esp_log.h"
+#include "motor.h"
 #include <Adafruit_NeoPixel.h>
 #include <Arduino.h>
 
@@ -14,7 +15,7 @@ Adafruit_NeoPixel modeRGB(1, MODE_WS2812_PIN, NEO_GRB + NEO_KHZ800);
 sysLedMode currentSysLedMode = STANDBY;
 sysLedMode lastSysLedMode    = STANDBY;
 
-QueueHandle_t ledQueue = xQueueCreate(10, sizeof(LedMode));
+QueueHandle_t ledQueue = xQueueCreate(10, sizeof(sysLedMode));
 
 void ledInit() {
   sysRGB.begin();
@@ -74,28 +75,31 @@ void sysLedTask(void* pvParameters) {
 
 void ModeLedTask(void* pvParameters) {
   while (1) {
-    if (xQueueReceive(ledQueue, &LedMode, portMAX_DELAY) == pdTRUE) {
+    static ControlMode currentMode, lastMode;
+    currentMode = getCurrentCtrlMode();
+    if (currentMode != lastMode) {
       sysRGB.clear();
-      switch (current_ctrl_mode) {
+      switch (currentMode) {
       case HAND_MODE:
-        sysRGB.setPixelColor(0, GREEN);
+        sysRGB.setPixelColor(0, COLOR_GREEN);
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
         break;
       case FOOT_MODE:
-        sysRGB.setPixelColor(0, BLUE);
+        sysRGB.setPixelColor(0, COLOR_BLUE);
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
         break;
       case CRUISE_MODE:
-        sysRGB.setPixelColor(0, YELLOW);
+        sysRGB.setPixelColor(0, COLOR_YELLOW);
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
         break;
       case STANDBY_MODE:
-        sysRGB.setPixelColor(0, RED);
+        sysRGB.setPixelColor(0, COLOR_RED);
         buzzer(3, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
         break;
       default:
         break;
       }
+      lastMode = currentMode;
     }
     sysRGB.show();
   }

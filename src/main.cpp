@@ -5,17 +5,30 @@
 #include "esp_log.h"
 #include "freertos/task.h"
 #include "led.h"
+#include "motor.h"
 #include <Arduino.h>
 #include <FreeRTOS.h>
 
 void setup() {
   Serial.begin(115200);
   vTaskDelay(1000 / portTICK_PERIOD_MS); // 等待串口稳定
-  // xTaskCreatePinnedToCore(ina226_task, "task_ina226", 1024 * 6, NULL, 1, NULL, 1);
-  // xTaskCreatePinnedToCore(ina226_print_task, "task_ina_print", 1024 * 2, NULL, 1, NULL, 1);
-  xTaskCreatePinnedToCore(temperatureRead, "task_ntc", 1024 * 6, NULL, 1, NULL, 1);
-  // xTaskCreatePinnedToCore(TemperaturePrint, "task_print", 1024 * 2, NULL, 1, NULL, 1);
+
+  ledInit();
+  buzzerInit();
+  motorInit();
+  ina226_init();
+  NTC_Init();
+
+  xTaskCreate(buzzerUpdate, "buzzerUpdate", 1024 * 2, NULL, 1, NULL);
+  xTaskCreate(ina226_task, "ina226_task", 1024 * 2, NULL, 1, NULL);
+  xTaskCreate(esp_now_connection_check, "esp_now_connection_check", 1024 * 2, NULL, 2, NULL);
+  xTaskCreate(dataSent, "dataSent", 1024 * 2, NULL, 2, NULL);
+  xTaskCreate(sysLedTask, "sysLedTask", 1024 * 2, NULL, 1, NULL);
+  xTaskCreate(ModeLedTask, "ModeLedTask", 1024 * 2, NULL, 1, NULL);
+  xTaskCreate(motorControl, "motorControl", 1024 * 2, NULL, 2, NULL);
+  xTaskCreate(modeIdentify, "modeIdentify", 1024 * 2, NULL, 1, NULL);
+  xTaskCreate(temperatureRead, "temperatureRead", 1024 * 2, NULL, 1, NULL);
 }
 void loop() {
-  vTaskDelete(NULL); // 删除 loop 任务，所有工作由 FreeRTOS 任务完成
+  vTaskDelay(1000 / portTICK_PERIOD_MS);
 }

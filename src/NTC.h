@@ -2,7 +2,8 @@
 
 #include <Arduino.h>
 
-void temperatureRead(void* pvParameters);
+void  NTC_Init();
+void  temperatureRead(void* pvParameters);
 float getPCBtemp();
 float getHighMosTemp();
 float getLowMosTemp();

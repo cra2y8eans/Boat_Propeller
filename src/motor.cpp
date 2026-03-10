@@ -3,50 +3,46 @@
 #include "esp_log.h"
 #include <Arduino.h>
 
-#define DIR_BUTTON_PIN 4      // 方向按钮引脚
-#define MOVE_BUTTON_PIN 10    // 移动按钮引脚
-#define SPEED_STEP 10         // 电机速度变化步长
-#define MIN_SPEED_CHANGE 20   // 最小可安全切换方向的速度
-#define SPEED_SCALE_FACTOR 10 // 减速比
 
-static const char*    TAG                   = "motor";
-static const uint8_t  SWITCH_DEBOUNCE_DELAY = 20; // 按键消抖延时，单位毫秒
-static const uint8_t  LOG_TIME_INTERVAL     = 2000;
-static const uint8_t  ON_FOOT_PIN           = 8;
-static const uint8_t  ON_HAND_PIN           = 5;
-static const uint8_t  motor_pin             = 2;     // 电机引脚
-static const uint8_t  dir_pin               = 3;     // 转向引脚
-static const uint8_t  motor_channel         = 4;     // 电机PWM通道
-static const uint8_t  resolution            = 8;     // 电机PWM精度
-static const uint16_t frequency             = 15000; // 电机频率
-static const uint8_t  speed_scale_factor    = 10;    // 减速比
-static const uint8_t  min_speed_change      = 20;    // 最小可安全切换方向的速度
-static const uint8_t  speed_step            = 10;    // 电机速度变化步长
-static int            filtered_duty;
+#define SPEED_STEP 10            // 电机速度变化步长
+#define MIN_SPEED_CHANGE 20      // 最小可安全切换方向的速度
+#define SPEED_SCALE_FACTOR 10    // 减速比
+#define SWITCH_DEBOUNCE_DELAY 20 // 按键消抖延时，单位毫秒
+#define LOG_OUTPUT_INTERVAL 2000 // 日志输出间隔，单位毫秒
 
-static int  target_speed  = 0;
-static int  current_speed = 0;
-static bool motor_move    = false;
-static bool motor_dir     = false;
+static const char*    TAG                = "motor";
+static const uint8_t  on_foot_pin        = 1;         // 模式引脚
+static const uint8_t  on_hand_pin        = 2;         // 模式引脚
+static const uint8_t  motor_pin          = 9;         // 电机引脚
+static const uint8_t  dir_pin            = 18;         // 转向引脚
+static const uint8_t  motor_channel      = 4;         // 电机PWM通道
+static const uint8_t  resolution         = 8;         // 电机PWM精度
+static const uint16_t frequency          = 15000;     // 电机频率
+static const uint8_t  min_speed_change   = 20;        // 最小可安全切换方向的速度
+static const uint8_t  speed_step         = 10;        // 电机速度变化步长
+static int            target_speed       = 0;         // 目标速度
+static int            current_speed      = 0;         // 当前速度
+static bool           motor_move         = false;     // 电机是否移动标志位
+static bool           motor_dir          = false;     // 电机方向标志位
+static ControlMode    current_ctrl_mode  = FOOT_MODE; // 默认为脚控模式
+static ControlMode    last_ctrl_mode     = FOOT_MODE; // 默认为脚控模式
 
 void motorInit() {
   ledcSetup(motor_channel, frequency, resolution); // 配置PWM通道
   ledcAttachPin(motor_pin, motor_channel);         // 将电机引脚绑定到PWM通道
   ledcWrite(motor_channel, 0);                     // 初始占空比为0
   pinMode(dir_pin, OUTPUT);                        // 设置转向引脚为输出模式
+  pinMode(on_hand_pin, INPUT_PULLDOWN);            // 设置手控模式引脚为输入下拉模式
+  pinMode(on_foot_pin, INPUT_PULLDOWN);            // 设置脚控模式引脚为输入下拉模式
 }
-
-
-static ControlMode current_ctrl_mode = FOOT_MODE; // 默认为脚控模式
-static ControlMode last_ctrl_mode    = FOOT_MODE; // 默认为脚控模式
 
 // 消抖读取当前模式
 ControlMode readCurrentModeWithDebounce() {
-  int readHand_1 = digitalRead(ON_HAND_PIN);
-  int readFoot_1 = digitalRead(ON_FOOT_PIN);
+  int readHand_1 = digitalRead(on_hand_pin);
+  int readFoot_1 = digitalRead(on_foot_pin);
   vTaskDelay(SWITCH_DEBOUNCE_DELAY / portTICK_PERIOD_MS); // 延时20ms，消抖
-  int readHand_2 = digitalRead(ON_HAND_PIN);
-  int readFoot_2 = digitalRead(ON_FOOT_PIN);
+  int readHand_2 = digitalRead(on_hand_pin);
+  int readFoot_2 = digitalRead(on_foot_pin);
 
   if (readHand_1 != readHand_2 || readFoot_1 != readFoot_2) return last_ctrl_mode; // 如果两次读取的值不一样，说明有抖动，返回上次的模式
   if (readHand_1 == LOW && readFoot_1 == HIGH) return HAND_MODE;                   // 手控模式
@@ -56,36 +52,31 @@ ControlMode readCurrentModeWithDebounce() {
   return HAND_MODE; // 默认返回手动模式
 }
 
-void modeChange() {
-  if (isFootPadOnline) {
-    current_ctrl_mode = readCurrentModeWithDebounce();
-  } else {
-    current_ctrl_mode                  = STANDBY_MODE; // 如果断线，返回待机模式
-    static unsigned long lastDebugTime = 0;
-    if (millis() - lastDebugTime > LOG_TIME_INTERVAL) { // 每2秒打印一次，避免刷屏
-      ESP_LOGE(TAG, "脚控不在线，返回待机模式");
-      lastDebugTime = millis();
-    }
-  }
-  if (current_ctrl_mode != last_ctrl_mode) {
-    last_ctrl_mode          = current_ctrl_mode;
-    const char* modeNames[] = { "手动模式", "脚控模式", "巡航模式", "待机模式" };
-    ESP_LOGI(TAG, "%s\n", modeNames[current_ctrl_mode]);
-  }
-}
-
-/** 获取当前控制模式
- * @brief     返回当前的控制模式
- * @return    当前控制模式（HAND_MODE、FOOT_MODE、CRUISE_MODE、STANDBY_MODE）
- */
 ControlMode getCurrentCtrlMode() {
   return current_ctrl_mode;
 }
 
+void modeIdentify(void* pvParameters) {
+  while (1) {
+    if (isFootPadOnline) {
+      current_ctrl_mode = readCurrentModeWithDebounce();
+      if (current_ctrl_mode != last_ctrl_mode) {
+        last_ctrl_mode          = current_ctrl_mode;
+        const char* modeNames[] = { "手动模式", "脚控模式", "巡航模式", "待机模式" };
+        ESP_LOGI(TAG, "%s\n", modeNames[current_ctrl_mode]);
+      }
+    } else {
+      current_ctrl_mode = STANDBY_MODE; // 如果断线，返回待机模式
+      ESP_LOGE(TAG, "脚控不在线，返回待机模式");
+    }
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+  }
+}
+
 void motorControl(void* pvParameters) {
-  motorInit();
   while (1) {
     /* code */
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
 }
 

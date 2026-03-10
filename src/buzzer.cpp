@@ -1,7 +1,7 @@
 #include "buzzer.h"
 #include <Arduino.h>
 
-static uint8_t buzzerPin = 3;
+static uint8_t buzzerPin = 39;
 
 /**
  * @enum    状态机定义
@@ -63,10 +63,10 @@ void buzzer(uint8_t times, uint16_t duration, uint16_t interval) {
  * @note    如果不调用此函数，蜂鸣器将无法工作
  */
 void buzzerUpdate(void* pvParameter) {
-  void buzzerInit();
   while (1) {
     if (buzzerState == BUZZER_IDLE) {
-      return; // 如果处于空闲状态，无需处理
+      vTaskDelay(100 / portTICK_PERIOD_MS);
+      continue; // 如果处于空闲状态，无需处理
     }
     uint32_t currentTime = millis();                     // 获取当前时间
     uint32_t elapsedTime = currentTime - stateStartTime; // 计算当前状态持续的时间

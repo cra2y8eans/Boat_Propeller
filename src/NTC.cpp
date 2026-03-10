@@ -138,8 +138,8 @@ static const float res_table[121] = {
   0.371   // 120°C
 };
 
-static uint8_t ntc_pcb_pin      = 6;
-static uint8_t ntc_high_mos_pin = 7;
+static uint8_t ntc_pcb_pin      = 5;
+static uint8_t ntc_high_mos_pin = 6;
 static uint8_t ntc_low_mos_pin  = 4;
 
 static float PCB_Temperature      = 0.0f;
@@ -195,7 +195,6 @@ float TemperatureReading(Filters::LowPass& filter, uint8_t pin) {
 }
 
 void temperatureRead(void* pvParameters) {
-  NTC_Init();
   while (1) {
     PCB_Temperature      = TemperatureReading(PCB_NTC_Filter, ntc_pcb_pin);
     High_Mos_Temperature = TemperatureReading(High_Mos_NTC_Filter, ntc_high_mos_pin);

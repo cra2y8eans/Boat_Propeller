@@ -80,49 +80,42 @@ void ina226_init() {
     ina.setBusVoltageConversionTime(INA226_8300_us);   // 设置最长转换时间以获得最高精度
     ina.setShuntVoltageConversionTime(INA226_8300_us); // 设置最长转换时间以获得最高精度
     uint16_t res = ina.setMaxCurrentShunt(maxCurrent, H_BridgeShunt);
-    switch (res) {
-    case INA226_ERR_NONE:
+    if (res == INA226_ERR_NONE) {
       ESP_LOGI(TAG, "校准成功");
-      break;
-    case INA226_ERR_SHUNTVOLTAGE_HIGH:
-      ESP_LOGE(TAG, "校准失败：检测电阻过大或最大电流过高，导致电压超过81.90 mV");
-      break;
-    case INA226_ERR_MAXCURRENT_LOW:
-      ESP_LOGE(TAG, "校准失败：最大电流过小，必须大于0.001 A");
-    case INA226_ERR_SHUNT_LOW:
-      ESP_LOGE(TAG, "校准失败：检测电阻过小，必须大于0.01 Ω");
-      break;
-    default:
-      break;
-    }
-    if (res != INA226_ERR_NONE) {
+      return;
+    } else {
+      switch (res) {
+      case INA226_ERR_SHUNTVOLTAGE_HIGH:
+        ESP_LOGE(TAG, "校准失败：检测电阻过大或最大电流过高，导致电压超过81.90 mV");
+        break;
+      case INA226_ERR_MAXCURRENT_LOW:
+        ESP_LOGE(TAG, "校准失败：最大电流过小，必须大于0.001 A");
+        break;
+      case INA226_ERR_SHUNT_LOW:
+        ESP_LOGE(TAG, "校准失败：检测电阻过小，必须大于0.01 Ω");
+        break;
+      default:
+        break;
+      }
       return;
     }
-    return;
   }
 }
 
 void ina226_task(void* pvParameters) {
-  ina226_init();
   while (1) {
     busVoltage      = ina.getBusVoltage();
     shuntVoltage    = ina.getShuntVoltage_mV();
     H_BridgeCurrent = ina.getCurrent();
     power           = ina.getPower();
+    ESP_LOGI(TAG, "busVoltage: %.3f V\n", busVoltage);
+    ESP_LOGI(TAG, "Shunt Voltage: %.3f mV\n", shuntVoltage);
+    ESP_LOGI(TAG, "Current: %.3f A\n", H_BridgeCurrent);
+    ESP_LOGI(TAG, "Power: %.3f W\n", power);
     vTaskDelay(1000 / portTICK_PERIOD_MS); // 每秒更新一次数据
   }
 }
 
-void ina226_print_task(void* pvParameters) {
-  while (1) {
-    Serial.printf("Bus Voltage: %.3f V\n", busVoltage);
-    Serial.printf("Shunt Voltage: %.3f mV\n", shuntVoltage);
-    Serial.printf("Current: %.3f A\n", H_BridgeCurrent);
-    Serial.printf("Power: %.3f W\n", power);
-    Serial.println("-----------------------");
-    vTaskDelay(2000 / portTICK_PERIOD_MS); // 每两秒打印一次数据
-  }
-}
 float getCurrentMA() {
   return H_BridgeCurrent * 1000;
 }

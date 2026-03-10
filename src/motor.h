@@ -9,6 +9,7 @@ enum ControlMode {
   STANDBY_MODE, // 待机模式
 };
 
-// 获取当前控制模式
-ControlMode getCurrentCtrlMode();
+void        motorInit();
+ControlMode getCurrentCtrlMode(); // 获取当前控制模式
 void        motorControl(void* pvParameters);
+void        modeIdentify(void* pvParameters);

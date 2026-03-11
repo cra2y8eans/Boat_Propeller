@@ -14,7 +14,7 @@ esp_now_peer_info_t BoatPropeller;
 
 static const char*    TAG                 = "ESPNOW";
 static const uint16_t RECV_TIMEOUT        = 500;
-static const uint8_t  FootPadMacAddr[6]   = {};
+static const uint8_t  FootPadMacAddr[6]   = { };
 static const uint8_t  DebugMacAddr[6]     = { 0xF0, 0x9E, 0x9E, 0xAE, 0x14, 0x64 }; // C3 super mini 无排针
 static unsigned long  lastRecvFromDebug   = 0;
 static unsigned long  lastRecvFromPad     = 0;
@@ -67,13 +67,11 @@ static void OnDataSent(const uint8_t* mac_addr, esp_now_send_status_t status) {
 }
 
 void esp_now_setup() {
-  sysLedMode LedMode;
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   if (esp_now_init() != ESP_OK) {
     ESP_LOGE(TAG, "ESP NOW 初始化失败");
-    LedMode = ESP_NOW_INIT_FAIL;
-    xQueueSend(ledQueue, &LedMode, portMAX_DELAY);
+    ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
     buzzer(3, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
     return;
   } else {
@@ -88,11 +86,7 @@ void esp_now_setup() {
   // 添加debug对等节点
   memcpy(BoatPropeller.peer_addr, DebugMacAddr, 6);
   esp_now_add_peer(&BoatPropeller);
-  // 发送初始化数据到脚控
-  esp_now_send(FootPadMacAddr, (uint8_t*)&sendToPad, sizeof(sendToPad));
-  LedMode = ESP_NOW_CONNECTED;
-  if (isFootPadOnline) xQueueSend(ledQueue, &LedMode, portMAX_DELAY);
-  buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
+  ledSetMode(sysRGB, LED_BLINK, COLOR_YELLOW, LONG_FLASH_DURATION, LONG_FLASH_INTERVAL); // 闪黄灯，等待连接
 }
 
 /**  ESPNOW连接检查任务
@@ -108,7 +102,6 @@ void esp_now_connection_check(void* pvParameters) {
   static bool          debug_last_connection_state = false;
   static unsigned long last_disconnect_alert       = 0;
   const unsigned long  DISCONNECT_ALERT_INTERVAL   = 2000;
-
   while (1) {
     unsigned long currentTime = millis();
     isFootPadOnline           = (currentTime - lastRecvFromPad <= RECV_TIMEOUT);
@@ -117,21 +110,19 @@ void esp_now_connection_check(void* pvParameters) {
     // 脚控掉线：只在刚掉线时报警
     if (!isFootPadOnline && foot_last_connection_state) {
       foot_last_connection_state = false;
-      sysLedMode LedMode         = ESP_NOW_DISCONNECTED;
-      xQueueSend(ledQueue, &LedMode, portMAX_DELAY);
+      ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
       buzzer(3, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
       last_disconnect_alert = currentTime;
     }
     // 脚控重连：只在刚重连时报警
     else if (isFootPadOnline && !foot_last_connection_state) {
       foot_last_connection_state = true;
-      sysLedMode LedMode         = ESP_NOW_CONNECTED;
-      xQueueSend(ledQueue, &LedMode, portMAX_DELAY);
+      ledSetMode(sysRGB, LED_ON, COLOR_BLUE, 0, 0);
       buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
     }
     // 脚控一直掉线：间隔性提醒
     else if (!isFootPadOnline && (currentTime - last_disconnect_alert >= DISCONNECT_ALERT_INTERVAL)) {
-      buzzer(3, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
+      ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
       last_disconnect_alert = currentTime;
     }
     // Debug 设备连接状态变化

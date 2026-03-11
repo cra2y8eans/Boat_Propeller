@@ -1,7 +1,4 @@
 #include "led.h"
-#include "buzzer.h"
-#include "esp_log.h"
-#include "motor.h"
 #include <Adafruit_NeoPixel.h>
 #include <Arduino.h>
 
@@ -9,16 +6,38 @@
 #define MIN_BRIGHTNESS 0
 #define STANDARD_BRIGHTNESS 100
 
+// ===== 硬件配置 =====
 static const uint8_t SYS_WS2812_PIN  = 16;
 static const uint8_t MODE_WS2812_PIN = 15;
 
+// ===== LED对象 =====
 Adafruit_NeoPixel sysRGB(1, SYS_WS2812_PIN, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel modeRGB(1, MODE_WS2812_PIN, NEO_GRB + NEO_KHZ800);
 
-sysLedMode LedMode = STANDBY;
+// ===== LED状态机 =====
 
-QueueHandle_t ledQueue = xQueueCreate(10, sizeof(sysLedMode));
+typedef enum {
+  LED_STATE_IDLE,
+  LED_STATE_BLINK_ON,
+  LED_STATE_BLINK_OFF,
+} LedState;
 
+struct LedController {
+  LedState state;
+  uint32_t stateStartTime;
+  uint32_t color;
+  uint16_t duration;
+  uint16_t interval;
+};
+
+static LedController sysLedCtrl  = { LED_STATE_IDLE, 0, 0, 0, 0 };
+static LedController modeLedCtrl = { LED_STATE_IDLE, 0, 0, 0, 0 };
+
+// ===== 公共接口 =====
+
+/**
+ * @brief 初始化LED
+ */
 void ledInit() {
   sysRGB.begin();
   modeRGB.begin();
@@ -28,137 +47,100 @@ void ledInit() {
   modeRGB.clear();
 }
 
-void sysLedTask(void* pvParameters) {
-  while (1) {
-    if (xQueueReceive(ledQueue, &LedMode, portMAX_DELAY) == pdTRUE) {
-      switch (LedMode) {
-      case STANDBY:
-        sysRGB.clear();
-        sysRGB.show();
-        break;
-      case ESP_NOW_INIT_SUCCESS:
-        sysRGB.clear();
-        sysRGB.setPixelColor(0, COLOR_RED);
-        sysRGB.show();
-        vTaskDelay(LONG_FLASH_DURATION / portTICK_PERIOD_MS);
-        sysRGB.clear();
-        sysRGB.show();
-        vTaskDelay(LONG_FLASH_INTERVAL / portTICK_PERIOD_MS);
-        sysRGB.clear();
-        sysRGB.setPixelColor(0, COLOR_GREEN);
-        sysRGB.show();
-        vTaskDelay(LONG_FLASH_DURATION / portTICK_PERIOD_MS);
-        sysRGB.clear();
-        sysRGB.show();
-        vTaskDelay(LONG_FLASH_INTERVAL / portTICK_PERIOD_MS);
-        sysRGB.clear();
-        sysRGB.setPixelColor(0, COLOR_BLUE);
-        sysRGB.show();
-        vTaskDelay(LONG_FLASH_DURATION / portTICK_PERIOD_MS);
-        sysRGB.clear();
-        sysRGB.show();
-        vTaskDelay(LONG_FLASH_INTERVAL / portTICK_PERIOD_MS);
-        break;
-      case ESP_NOW_INIT_FAIL:
-        sysRGB.clear();
-        sysRGB.setPixelColor(0, COLOR_RED);
-        sysRGB.show();
-        vTaskDelay(LONG_FLASH_DURATION / portTICK_PERIOD_MS);
-        sysRGB.clear();
-        sysRGB.show();
-        vTaskDelay(LONG_FLASH_INTERVAL / portTICK_PERIOD_MS);
-        break;
-      case ESP_NOW_CONNECTED:
-        sysRGB.clear();
-        sysRGB.setPixelColor(0, COLOR_BLUE);
-        sysRGB.show();
-        break;
-      case ESP_NOW_DISCONNECTED:
-        sysRGB.clear();
-        sysRGB.setPixelColor(0, COLOR_RED);
-        sysRGB.show();
-        break;
-      case H_BRIDGE_FAULT:
-        sysRGB.clear();
-        sysRGB.setPixelColor(0, COLOR_RED);
-        sysRGB.show();
-        vTaskDelay(SHORT_FLASH_DURATION / portTICK_PERIOD_MS);
-        sysRGB.clear();
-        sysRGB.show();
-        vTaskDelay(SHORT_FLASH_INTERVAL / portTICK_PERIOD_MS);
-        break;
-      case H_BRIDGE_CHOPPING:
-        sysRGB.clear();
-        sysRGB.setPixelColor(0, COLOR_YELLOW);
-        sysRGB.show();
-        vTaskDelay(LONG_FLASH_DURATION / portTICK_PERIOD_MS);
-        sysRGB.clear();
-        sysRGB.show();
-        vTaskDelay(LONG_FLASH_INTERVAL / portTICK_PERIOD_MS);
-        break;
-      case OVER_HEAT:
-        sysRGB.clear();
-        sysRGB.setPixelColor(0, COLOR_RED);
-        sysRGB.show();
-        vTaskDelay(SHORT_FLASH_DURATION / portTICK_PERIOD_MS);
-        sysRGB.clear();
-        sysRGB.show();
-        vTaskDelay(SHORT_FLASH_INTERVAL / portTICK_PERIOD_MS);
-        sysRGB.clear();
-        sysRGB.setPixelColor(0, COLOR_YELLOW);
-        sysRGB.show();
-        vTaskDelay(SHORT_FLASH_DURATION / portTICK_PERIOD_MS);
-        sysRGB.clear();
-        sysRGB.show();
-        vTaskDelay(SHORT_FLASH_INTERVAL / portTICK_PERIOD_MS);
-        break;
-      case STEP_DIAG:
-        sysRGB.clear();
-        sysRGB.setPixelColor(0, COLOR_CYAN);
-        sysRGB.show();
-        vTaskDelay(LONG_FLASH_DURATION / portTICK_PERIOD_MS);
-        sysRGB.clear();
-        sysRGB.show();
-        vTaskDelay(LONG_FLASH_INTERVAL / portTICK_PERIOD_MS);
-        break;
+/**
+ * @brief 设置LED模式（非阻塞）
+ */
+void ledSetMode(Adafruit_NeoPixel& myRGB, enum LEDMode mode, uint32_t color, uint16_t duration, uint16_t interval) {
+  LedController* ctrl = (&myRGB == &sysRGB) ? &sysLedCtrl : &modeLedCtrl;
 
-      default:
-        break;
-      }
-    }
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+  ctrl->color    = color;
+  ctrl->duration = duration;
+  ctrl->interval = interval;
+
+  switch (mode) {
+  case LED_ON:
+    myRGB.clear();
+    myRGB.setPixelColor(0, color);
+    myRGB.show();
+    ctrl->state = LED_STATE_IDLE;
+    break;
+
+  case LED_OFF:
+    myRGB.clear();
+    myRGB.show();
+    ctrl->state = LED_STATE_IDLE;
+    break;
+
+  case LED_BLINK:
+    ctrl->state          = LED_STATE_BLINK_ON;
+    ctrl->stateStartTime = millis();
+    myRGB.clear();
+    myRGB.setPixelColor(0, color);
+    myRGB.show();
+    break;
+
+  case LED_IDLE:
+    ctrl->state = LED_STATE_IDLE;
+    break;
   }
 }
 
-void ModeLedTask(void* pvParameters) {
+/**
+ * @brief LED状态机更新函数（非阻塞）
+ */
+void ledUpdate(void* pvParameter) {
   while (1) {
-    static ControlMode currentMode, lastMode;
-    currentMode = getCurrentCtrlMode();
-    if (currentMode != lastMode) {
-      modeRGB.clear();
-      switch (currentMode) {
-      case HAND_MODE:
-        modeRGB.setPixelColor(0, COLOR_GREEN);
-        buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        break;
-      case FOOT_MODE:
-        modeRGB.setPixelColor(0, COLOR_BLUE);
-        buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        break;
-      case CRUISE_MODE:
-        modeRGB.setPixelColor(0, COLOR_YELLOW);
-        buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        break;
-      case STANDBY_MODE:
-        modeRGB.setPixelColor(0, COLOR_RED);
-        buzzer(3, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        break;
-      default:
-        break;
+    // 更新系统LED
+    LedController* sysCtrl        = &sysLedCtrl;
+    uint32_t       sysElapsedTime = millis() - sysCtrl->stateStartTime;
+
+    switch (sysCtrl->state) {
+    case LED_STATE_BLINK_ON:
+      if (sysElapsedTime >= sysCtrl->duration) {
+        sysRGB.clear();
+        sysRGB.show();
+        sysCtrl->state          = LED_STATE_BLINK_OFF;
+        sysCtrl->stateStartTime = millis();
       }
-      lastMode = currentMode;
+      break;
+    case LED_STATE_BLINK_OFF:
+      if (sysElapsedTime >= sysCtrl->interval) {
+        sysRGB.clear();
+        sysRGB.setPixelColor(0, sysCtrl->color);
+        sysRGB.show();
+        sysCtrl->state          = LED_STATE_BLINK_ON;
+        sysCtrl->stateStartTime = millis();
+      }
+      break;
+
+    default:
+      break;
     }
-    modeRGB.show();
-    vTaskDelay(100 / portTICK_PERIOD_MS);
+    // 更新模式LED
+    LedController* modeCtrl        = &modeLedCtrl;
+    uint32_t       modeElapsedTime = millis() - modeCtrl->stateStartTime;
+
+    switch (modeCtrl->state) {
+    case LED_STATE_BLINK_ON:
+      if (modeElapsedTime >= modeCtrl->duration) {
+        modeRGB.clear();
+        modeRGB.show();
+        modeCtrl->state          = LED_STATE_BLINK_OFF;
+        modeCtrl->stateStartTime = millis();
+      }
+      break;
+    case LED_STATE_BLINK_OFF:
+      if (modeElapsedTime >= modeCtrl->interval) {
+        modeRGB.clear();
+        modeRGB.setPixelColor(0, modeCtrl->color);
+        modeRGB.show();
+        modeCtrl->state          = LED_STATE_BLINK_ON;
+        modeCtrl->stateStartTime = millis();
+      }
+      break;
+    default:
+      break;
+    }
+    vTaskDelay(10 / portTICK_PERIOD_MS);
   }
 }

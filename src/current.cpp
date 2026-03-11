@@ -15,10 +15,10 @@ static const uint8_t scl_pin       = 12;
 static const float   maxCurrent    = 10.0;   // 最大电流，单位安培
 static const float   H_BridgeShunt = 0.0005; // 检测电阻，单位欧
 
-static float busVoltage = 0.00, // 总线电压，单位伏特
-    shuntVoltage        = 0.00, // 检测电阻电压，单位伏特
-    H_BridgeCurrent     = 0.00, // 电流，单位安培
-    power               = 0.00; // 功率，单位瓦特
+static volatile float busVoltage = 0.00, // 总线电压，单位伏特
+    shuntVoltage                 = 0.00, // 检测电阻电压，单位伏特
+    H_BridgeCurrent              = 0.00, // 电流，单位安培
+    power                        = 0.00; // 功率，单位瓦特
 
 /* ina226库常用API:
     begin()                                 // 初始化传感器

@@ -11,22 +11,22 @@
 #include <freertos/task.h>
 
 // 定义临界区变量
-// portMUX_TYPE myMux = portMUX_INITIALIZER_UNLOCKED;
+static portMUX_TYPE esp_now_Mux = portMUX_INITIALIZER_UNLOCKED;
 
 esp_now_peer_info_t BoatPropeller;
 
-static const char*    TAG                 = "ESPNOW";
-static const uint16_t RECV_TIMEOUT        = 500;
-static const uint8_t  FootPadMacAddr[6]   = { };
-static const uint8_t  DebugMacAddr[6]     = { 0xF0, 0x9E, 0x9E, 0xAE, 0x14, 0x64 }; // C3 super mini 无排针
-static volatile unsigned long  lastRecvFromDebug   = 0;
-static volatile unsigned long  lastRecvFromPad     = 0;
-static uint8_t        sendToPad           = 0; // 发送到脚控的数据，只是用来验证连接状态，无实际用途
-static uint8_t        RecvFromDebug       = 0; // 接收来自调试设备的数据，只是用来验证连接状态，无实际用途
-volatile bool         isDebugDeviceOnline = false;
-volatile bool         isFootPadOnline     = false;
+static const char*            TAG                 = "ESPNOW";
+static const uint16_t         RECV_TIMEOUT        = 500;
+static const uint8_t          FootPadMacAddr[6]   = { };
+static const uint8_t          DebugMacAddr[6]     = { 0xF0, 0x9E, 0x9E, 0xAE, 0x14, 0x64 }; // C3 super mini 无排针
+static volatile unsigned long lastRecvFromDebug   = 0;
+static volatile unsigned long lastRecvFromPad     = 0;
+static volatile uint8_t       sendToPad           = 0; // 发送到脚控的数据，只是用来验证连接状态，无实际用途
+static volatile uint8_t       RecvFromDebug       = 0; // 接收来自调试设备的数据，只是用来验证连接状态，无实际用途
+volatile bool                 isDebugDeviceOnline = false;
+volatile bool                 isFootPadOnline     = false;
 
-RecvFromFootPad_t FootPadData; // 接收来自脚控的数据
+volatile RecvFromFootPad_t FootPadData; // 接收来自脚控的数据
 
 // 发送到调试设备的数据
 struct sendToDebug_t {
@@ -45,16 +45,16 @@ static void OnDataRecv(const uint8_t* mac, const uint8_t* data, int len) {
   const uint8_t* fromMac = mac;
   // memcmp函数比较两个内存区域的前n个字节是否相同，参数为比较对象1、比较对象2、比较长度。如果相同，返回0，否则返回非0值
   if (memcmp(fromMac, FootPadMacAddr, 6) == 0) {
-    // taskENTER_CRITICAL(&myMux);
-    memcpy(&FootPadData, data, sizeof(FootPadData));
+    taskENTER_CRITICAL(&esp_now_Mux);
+    memcpy((void*)&FootPadData, data, sizeof(FootPadData));
     isFootPadOnline = true; // 如果是脚控发来的数据，说明脚控在线
-    // taskEXIT_CRITICAL(&myMux);
+    taskEXIT_CRITICAL(&esp_now_Mux);
     lastRecvFromPad = millis();
   } else if (memcmp(fromMac, DebugMacAddr, 6) == 0) {
-    // taskENTER_CRITICAL(&myMux);
-    memcpy(&RecvFromDebug, data, sizeof(RecvFromDebug));
+    taskENTER_CRITICAL(&esp_now_Mux);
+    memcpy((void*)&RecvFromDebug, data, sizeof(RecvFromDebug));
     isDebugDeviceOnline = true; // 如果是调试设备发来的数据，说明调试设备在线
-    // taskEXIT_CRITICAL(&myMux);
+    taskEXIT_CRITICAL(&esp_now_Mux);
     lastRecvFromDebug = millis();
   }
 }
@@ -137,13 +137,17 @@ void dataSent(void* pvParameters) {
       esp_now_send(FootPadMacAddr, (uint8_t*)&sendToPad, sizeof(sendToPad));
     }
     if (isDebugDeviceOnline) {
+      float vPad;
       toDebug.vBus_MV    = getBusVoltageMV();
       toDebug.current_MA = getCurrentMA();
       toDebug.power_MW   = getPowerMW();
       toDebug.temp_PCB   = getPCBtemp();
       toDebug.temp_h_mos = getHighMosTemp();
       toDebug.temp_l_mos = getLowMosTemp();
-      toDebug.vPad_mv    = FootPadData.batVoltage;
+      taskENTER_CRITICAL(&esp_now_Mux);
+      vPad = FootPadData.batVoltage;
+      taskEXIT_CRITICAL(&esp_now_Mux);
+      toDebug.vPad_mv = vPad;
       esp_now_send(DebugMacAddr, (uint8_t*)&toDebug, sizeof(toDebug));
     }
     vTaskDelay(100 / portTICK_PERIOD_MS);

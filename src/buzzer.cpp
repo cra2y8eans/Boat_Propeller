@@ -21,11 +21,11 @@ typedef enum {
 
 // ===== 状态机变量 =====
 
-static BuzzerState buzzerState     = BUZZER_IDLE;
-static uint32_t    stateStartTime  = 0;
-static uint8_t     remainingBeeps  = 0;
-static uint16_t    currentDuration = 0;
-static uint16_t    currentInterval = 0;
+static volatile BuzzerState buzzerState     = BUZZER_IDLE;
+static volatile uint32_t    stateStartTime  = 0;
+static volatile uint8_t     remainingBeeps  = 0;
+static volatile uint16_t    currentDuration = 0;
+static volatile uint16_t    currentInterval = 0;
 
 // ===== 公共接口函数 =====
 

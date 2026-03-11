@@ -142,9 +142,9 @@ static uint8_t ntc_pcb_pin      = 5;
 static uint8_t ntc_high_mos_pin = 6;
 static uint8_t ntc_low_mos_pin  = 4;
 
-static float PCB_Temperature      = 0.0f;
-static float High_Mos_Temperature = 0.0f;
-static float Low_Mos_Temperature  = 0.0f;
+static volatile float PCB_Temperature      = 0.0f;
+static volatile float High_Mos_Temperature = 0.0f;
+static volatile float Low_Mos_Temperature  = 0.0f;
 
 Filters ::LowPass PCB_NTC_Filter(LOW_PASS_ALPHA);
 Filters ::LowPass High_Mos_NTC_Filter(LOW_PASS_ALPHA);

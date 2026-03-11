@@ -11,9 +11,9 @@ struct RecvFromFootPad_t {
   bool     data[4] = {}; // 0、左转，1、右转，2、电推，3、功能
   float    batVoltage;
 };
-extern RecvFromFootPad_t FootPadData;
+extern volatile RecvFromFootPad_t FootPadData;
 
-extern bool isDebugDeviceOnline, isFootPadOnline;
+extern volatile bool isDebugDeviceOnline, isFootPadOnline;
 
 void esp_now_setup();
 void esp_now_connection_check(void* pvParameters);

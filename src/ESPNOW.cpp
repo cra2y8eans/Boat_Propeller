@@ -10,18 +10,21 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+// 定义临界区变量
+// portMUX_TYPE myMux = portMUX_INITIALIZER_UNLOCKED;
+
 esp_now_peer_info_t BoatPropeller;
 
 static const char*    TAG                 = "ESPNOW";
 static const uint16_t RECV_TIMEOUT        = 500;
 static const uint8_t  FootPadMacAddr[6]   = { };
 static const uint8_t  DebugMacAddr[6]     = { 0xF0, 0x9E, 0x9E, 0xAE, 0x14, 0x64 }; // C3 super mini 无排针
-static unsigned long  lastRecvFromDebug   = 0;
-static unsigned long  lastRecvFromPad     = 0;
+static volatile unsigned long  lastRecvFromDebug   = 0;
+static volatile unsigned long  lastRecvFromPad     = 0;
 static uint8_t        sendToPad           = 0; // 发送到脚控的数据，只是用来验证连接状态，无实际用途
 static uint8_t        RecvFromDebug       = 0; // 接收来自调试设备的数据，只是用来验证连接状态，无实际用途
-bool                  isDebugDeviceOnline = false;
-bool                  isFootPadOnline     = false;
+volatile bool         isDebugDeviceOnline = false;
+volatile bool         isFootPadOnline     = false;
 
 RecvFromFootPad_t FootPadData; // 接收来自脚控的数据
 
@@ -42,28 +45,22 @@ static void OnDataRecv(const uint8_t* mac, const uint8_t* data, int len) {
   const uint8_t* fromMac = mac;
   // memcmp函数比较两个内存区域的前n个字节是否相同，参数为比较对象1、比较对象2、比较长度。如果相同，返回0，否则返回非0值
   if (memcmp(fromMac, FootPadMacAddr, 6) == 0) {
+    // taskENTER_CRITICAL(&myMux);
     memcpy(&FootPadData, data, sizeof(FootPadData));
     isFootPadOnline = true; // 如果是脚控发来的数据，说明脚控在线
+    // taskEXIT_CRITICAL(&myMux);
     lastRecvFromPad = millis();
   } else if (memcmp(fromMac, DebugMacAddr, 6) == 0) {
+    // taskENTER_CRITICAL(&myMux);
     memcpy(&RecvFromDebug, data, sizeof(RecvFromDebug));
     isDebugDeviceOnline = true; // 如果是调试设备发来的数据，说明调试设备在线
-    lastRecvFromDebug   = millis();
+    // taskEXIT_CRITICAL(&myMux);
+    lastRecvFromDebug = millis();
   }
 }
 
 // 发送回调
 static void OnDataSent(const uint8_t* mac_addr, esp_now_send_status_t status) {
-  // const uint8_t* receiverMac = mac_addr;
-  // if (status != ESP_NOW_SEND_SUCCESS) { // 如果发送失败，说明有设备不在线
-  //   // 通过mac地址判断是哪个设备不在线
-  //   if (memcmp(receiverMac, DebugMacAddr, 6) == 0) isDebugDeviceOnline = false;
-  //   if (memcmp(receiverMac, FootPadMacAddr, 6) == 0) isFootPadOnline = false;
-  // } else {
-  //   // 判断哪个在线
-  //   if (memcmp(receiverMac, DebugMacAddr, 6) == 0) isDebugDeviceOnline = true;
-  //   if (memcmp(receiverMac, FootPadMacAddr, 6) == 0) isFootPadOnline = true;
-  // }
 }
 
 void esp_now_setup() {

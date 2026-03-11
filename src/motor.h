@@ -9,7 +9,10 @@ enum ControlMode {
   STANDBY_MODE, // 待机模式
 };
 
+extern uint8_t stepSpeed;
+
 void        motorInit();
-ControlMode getCurrentCtrlMode(); // 获取当前控制模式
 void        motorControl(void* pvParameters);
 void        modeIdentify(void* pvParameters);
+ControlMode getCurrentCtrlMode(); // 获取当前控制模式
+uint8_t     getStepSpeed();       // 获取当前步进电机转速

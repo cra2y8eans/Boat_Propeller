@@ -1,5 +1,6 @@
 #include "motor.h"
 #include "ESPNOW.h"
+#include "button.h"
 #include "buzzer.h"
 #include "esp_log.h"
 #include "led.h"
@@ -11,22 +12,25 @@
 #define SWITCH_DEBOUNCE_DELAY 20 // 按键消抖延时，单位毫秒
 #define LOG_OUTPUT_INTERVAL 2000 // 日志输出间隔，单位毫秒
 
-static const char*    TAG               = "motor";
-static const uint8_t  on_foot_pin       = 1;         // 模式引脚
-static const uint8_t  on_hand_pin       = 2;         // 模式引脚
-static const uint8_t  motor_pin         = 9;         // 电机引脚
-static const uint8_t  dir_pin           = 18;        // 转向引脚
-static const uint8_t  motor_channel     = 4;         // 电机PWM通道
-static const uint8_t  resolution        = 8;         // 电机PWM精度
-static const uint16_t frequency         = 15000;     // 电机频率
-static const uint8_t  min_speed_change  = 20;        // 最小可安全切换方向的速度
-static const uint8_t  speed_step        = 10;        // 电机速度变化步长
-static int            target_speed      = 0;         // 目标速度
-static int            current_speed     = 0;         // 当前速度
-static bool           motor_move        = false;     // 电机是否移动标志位
-static bool           motor_dir         = false;     // 电机方向标志位
-static ControlMode    current_ctrl_mode = FOOT_MODE; // 默认为脚控模式
-static ControlMode    last_ctrl_mode    = FOOT_MODE; // 默认为脚控模式
+static portMUX_TYPE   motor_mutex       = portMUX_INITIALIZER_UNLOCKED; // 定义临界区变量
+static const char*    TAG               = "motor";                      // 日志标签
+static const uint8_t  on_foot_pin       = 1;                            // 模式引脚
+static const uint8_t  on_hand_pin       = 2;                            // 模式引脚
+static const uint8_t  motor_pin         = 9;                            // 电机引脚
+static const uint8_t  dir_pin           = 18;                           // 转向引脚
+static const uint8_t  motor_channel     = 4;                            // 电机PWM通道
+static const uint8_t  resolution        = 8;                            // 电机PWM精度
+static const uint16_t frequency         = 15000;                        // 电机频率
+static const uint8_t  min_speed_change  = 20;                           // 最小可安全切换方向的速度
+static const uint8_t  speed_step        = 10;                           // 电机速度变化步长
+static int            target_speed      = 0;                            // 目标速度
+static int            current_speed     = 0;                            // 当前速度
+static bool           motor_move        = false;                        // 电机是否移动标志位
+static bool           motor_dir         = false;                        // 电机方向标志位
+static ControlMode    current_ctrl_mode = FOOT_MODE;                    // 默认为脚控模式
+static ControlMode    last_ctrl_mode    = FOOT_MODE;                    // 默认为脚控模式
+static uint8_t        motor_speed       = 0;                            // 手动挡电机转速
+volatile uint8_t      stepSpeed         = 0;                            // 步进电机转速
 
 void motorInit() {
   ledcSetup(motor_channel, frequency, resolution); // 配置PWM通道
@@ -57,6 +61,10 @@ ControlMode getCurrentCtrlMode() {
   return current_ctrl_mode;
 }
 
+uint8_t getStepSpeed() {
+  return stepSpeed;
+}
+
 void modeIdentify(void* pvParameters) {
   while (1) {
     if (isFootPadOnline) {
@@ -65,18 +73,46 @@ void modeIdentify(void* pvParameters) {
         last_ctrl_mode          = current_ctrl_mode;
         const char* modeNames[] = { "手动模式", "脚控模式", "巡航模式", "待机模式" };
         ESP_LOGI(TAG, "%s\n", modeNames[current_ctrl_mode]);
-        
-        // 非阻塞模式：使用 ledSetMode 和 buzzer
+        ButtonEvent_t buttonEvent;
         switch (current_ctrl_mode) {
-        case HAND_MODE:
+        case HAND_MODE: // 手控模式。该模式下电推转速由按钮控制。步进电机不工作。
+          if (xQueueReceive(buttonQueue, &buttonEvent, 0) == pdTRUE) {
+            if (buttonEvent.button == ACCEL_BUTTON) {
+              motor_speed++;
+              motor_speed = constrain(motor_speed, -3, 5);
+            } else if (buttonEvent.button == DECEL_BUTTON) {
+              motor_speed--;
+              motor_speed = constrain(motor_speed, -3, 5);
+            }
+          }
           ledSetMode(modeRGB, LED_ON, COLOR_GREEN, 0, 0);
           buzzer(1, SHORT_BEEP_DURATION, 0);
           break;
-        case FOOT_MODE:
+        case FOOT_MODE:    // 脚控模式。该模式下电推转速由脚控控制。按钮可以控制步进电机转速
+          motor_speed = 0; // 电推速度清零，防止切换手控模式时电机突然启动
+          if (xQueueReceive(buttonQueue, &buttonEvent, 0) == pdTRUE) {
+            if (buttonEvent.button == ACCEL_BUTTON) {
+              stepSpeed++;
+              stepSpeed = constrain(stepSpeed, 1, 5);
+            } else if (buttonEvent.button == DECEL_BUTTON) {
+              stepSpeed--;
+              stepSpeed = constrain(stepSpeed, 1, 5);
+            }
+          }
           ledSetMode(modeRGB, LED_ON, COLOR_BLUE, 0, 0);
           buzzer(1, SHORT_BEEP_DURATION, 0);
           break;
-        case CRUISE_MODE:
+        case CRUISE_MODE: // 巡航模式。该模式下电推转速由脚控控制。按钮可以控制步进电机转速
+          motor_speed = 0;
+          if (xQueueReceive(buttonQueue, &buttonEvent, 0) == pdTRUE) {
+            if (buttonEvent.button == ACCEL_BUTTON) {
+              stepSpeed++;
+              stepSpeed = constrain(stepSpeed, 1, 5);
+            } else if (buttonEvent.button == DECEL_BUTTON) {
+              stepSpeed--;
+              stepSpeed = constrain(stepSpeed, 1, 5);
+            }
+          }
           ledSetMode(modeRGB, LED_ON, COLOR_YELLOW, 0, 0);
           buzzer(1, SHORT_BEEP_DURATION, 0);
           break;

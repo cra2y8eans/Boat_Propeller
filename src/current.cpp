@@ -12,8 +12,8 @@ static const char* TAG = "INA226";
 
 static const uint8_t sda_pin       = 13;
 static const uint8_t scl_pin       = 12;
-static const float   maxCurrent    = 10.0;   // 最大电流，单位安培
-static const float   H_BridgeShunt = 0.0005; // 检测电阻，单位欧
+static const float   maxCurrent    = 10.0;  // 最大电流，单位安培
+static const float   H_BridgeShunt = 0.001; // 检测电阻，单位欧
 
 static volatile float busVoltage = 0.00, // 总线电压，单位伏特
     shuntVoltage                 = 0.00, // 检测电阻电压，单位伏特

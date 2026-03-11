@@ -46,14 +46,14 @@ static void OnDataRecv(const uint8_t* mac, const uint8_t* data, int len) {
   // memcmp函数比较两个内存区域的前n个字节是否相同，参数为比较对象1、比较对象2、比较长度。如果相同，返回0，否则返回非0值
   if (memcmp(fromMac, FootPadMacAddr, 6) == 0) {
     taskENTER_CRITICAL(&esp_now_Mux);
-    memcpy((void*)&FootPadData, data, sizeof(FootPadData));
-    isFootPadOnline = true; // 如果是脚控发来的数据，说明脚控在线
+    memcpy((void*)&FootPadData, data, sizeof(FootPadData)); // 强制转换指针，将data指针指向的内存拷贝到FootPadData指针指向的内存中
+    isFootPadOnline = true;                                 // 如果是脚控发来的数据，说明脚控在线
     taskEXIT_CRITICAL(&esp_now_Mux);
     lastRecvFromPad = millis();
   } else if (memcmp(fromMac, DebugMacAddr, 6) == 0) {
     taskENTER_CRITICAL(&esp_now_Mux);
     memcpy((void*)&RecvFromDebug, data, sizeof(RecvFromDebug));
-    isDebugDeviceOnline = true; // 如果是调试设备发来的数据，说明调试设备在线
+    isDebugDeviceOnline = true;
     taskEXIT_CRITICAL(&esp_now_Mux);
     lastRecvFromDebug = millis();
   }

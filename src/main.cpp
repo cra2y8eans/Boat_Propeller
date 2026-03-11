@@ -8,6 +8,7 @@
 #include "motor.h"
 #include <Arduino.h>
 #include <FreeRTOS.h>
+#include "button.h"
 
 void setup() {
   Serial.begin(115200);
@@ -19,6 +20,7 @@ void setup() {
   ina226_init();
   NTC_Init();
   esp_now_setup();
+  buttonInit();
 
   xTaskCreate(buzzerUpdate, "buzzerUpdate", 1024 * 2, NULL, 1, NULL);
   xTaskCreate(ina226_task, "ina226_task", 1024 * 2, NULL, 1, NULL);
@@ -28,6 +30,7 @@ void setup() {
   xTaskCreate(modeIdentify, "modeIdentify", 1024 * 2, NULL, 1, NULL);
   xTaskCreate(temperatureRead, "temperatureRead", 1024 * 2, NULL, 1, NULL);
   xTaskCreate(ledUpdate, "ledUpdate", 1024 * 2, NULL, 1, NULL);
+  xTaskCreate(buttonTask, "ButtonTask", 2048, NULL, 1, NULL);
 }
 void loop() {
   vTaskDelay(1000 / portTICK_PERIOD_MS);

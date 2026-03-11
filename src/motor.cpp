@@ -124,10 +124,11 @@ void modeIdentify(void* pvParameters) {
           break;
         }
       }
-    } else {
-      current_ctrl_mode = STANDBY_MODE; // 如果断线，返回待机模式
-      ESP_LOGE(TAG, "脚控不在线，返回待机模式");
     }
+    // else {
+    //   current_ctrl_mode = STANDBY_MODE; // 如果断线，返回待机模式
+    //   ESP_LOGE(TAG, "脚控不在线，返回待机模式");
+    // }
     vTaskDelay(500 / portTICK_PERIOD_MS);
   }
 }

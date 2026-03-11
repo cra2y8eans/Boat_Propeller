@@ -9,7 +9,7 @@ enum ControlMode {
   STANDBY_MODE, // 待机模式
 };
 
-extern uint8_t stepSpeed;
+extern volatile uint8_t stepSpeed;
 
 void        motorInit();
 void        motorControl(void* pvParameters);

@@ -5,11 +5,11 @@
 
 #define LONG_PRESS_DEBOUNCE_MS 800
 static const char*   TAG              = "button";
-static const uint8_t ACCEL_BUTTON_PIN = 32;
-static const uint8_t DECEL_BUTTON_PIN = 33;
+static const uint8_t ACCEL_BUTTON_PIN = 40;
+static const uint8_t DECEL_BUTTON_PIN = 41;
 
 static OneButton accelButton, decelButton;
-QueueHandle_t    buttonQueue = NULL;
+QueueHandle_t    buttonQueue = xQueueCreate(10, sizeof(ButtonEvent_t));
 
 // 回调函数：使用局部结构体变量，避免共享
 static void accelButtonShortPressed() {
@@ -33,13 +33,6 @@ static void decelButtonLongPressed() {
 }
 
 void buttonInit() {
-  if (buttonQueue == NULL) {
-    buttonQueue = xQueueCreate(10, sizeof(ButtonEvent_t));
-    if (buttonQueue == NULL) {
-      ESP_LOGE(TAG, "队列创建失败");
-      return;
-    }
-  }
   accelButton.setup(ACCEL_BUTTON_PIN, INPUT_PULLDOWN);
   decelButton.setup(DECEL_BUTTON_PIN, INPUT_PULLDOWN);
   accelButton.attachClick(accelButtonShortPressed);

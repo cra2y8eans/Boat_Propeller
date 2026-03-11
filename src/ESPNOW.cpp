@@ -1,3 +1,5 @@
+// 在.cpp 文件的最开头（#include 之前）
+// #define LOG_LOCAL_LEVEL ESP_LOG_INFO // 设置日志级别为 ESP_LOG_INFO，即使main.cpp或者ini中设置了日志级别，也会被覆盖
 #include "ESPNOW.h"
 #include "NTC.h"
 #include "buzzer.h"

@@ -18,7 +18,6 @@ struct ButtonEvent_t {
   uint8_t event;  // 短按或长按
 };
 
-// 队列句柄（供其他模块接收事件）
 extern QueueHandle_t buttonQueue;
 
 void buttonInit();

@@ -195,12 +195,14 @@ float TemperatureReading(Filters::LowPass& filter, uint8_t pin) {
 }
 
 void temperatureRead(void* pvParameters) {
+  TickType_t       xLastWakeTime = xTaskGetTickCount();
+  const TickType_t xPeriod       = pdMS_TO_TICKS(1000); // 延时 1000ms，频率 = 1000 / 1000 = 1 Hz，即每秒执行 1 次。
   while (1) {
     PCB_Temperature      = TemperatureReading(PCB_NTC_Filter, ntc_pcb_pin);
     High_Mos_Temperature = TemperatureReading(High_Mos_NTC_Filter, ntc_high_mos_pin);
     Low_Mos_Temperature  = TemperatureReading(Low_Mos_NTC_Filter, ntc_low_mos_pin);
     ESP_LOGI(TAG, "PCB_Temperature: %.2f\n°C, High_Mos_Temperature: %.2f\n°C, Low_Mos_Temperature: %.2f\n°C", PCB_Temperature, High_Mos_Temperature, Low_Mos_Temperature);
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }
 }
 

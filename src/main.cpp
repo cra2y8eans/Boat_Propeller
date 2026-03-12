@@ -7,31 +7,35 @@
 #include "freertos/task.h"
 #include "led.h"
 #include "motor.h"
+#include "step.h"
 #include <Arduino.h>
 #include <FreeRTOS.h>
 
 void setup() {
   Serial.begin(115200);
-  vTaskDelay(1000 / portTICK_PERIOD_MS); // 等待串口稳定
+  vTaskDelay(pdMS_TO_TICKS(1000)); // 等待串口稳定
 
   ledInit();
   buzzerInit();
-  motorInit();
-  // ina226_init();
-  NTC_Init();
   esp_now_setup();
   buttonInit();
+  stepper_init();
+  motorInit();
+  ina226_init();
+  NTC_Init();
 
-  xTaskCreate(buzzerUpdate, "buzzerUpdate", 1024 * 10, NULL, 1, NULL);
-  // xTaskCreate(ina226_task, "ina226_task", 1024 * 2, NULL, 1, NULL);
-  xTaskCreate(esp_now_connection_check, "esp_now_connection_check", 1024 * 10, NULL, 1, NULL);
-  xTaskCreate(dataSent, "dataSent", 1024 * 10, NULL, 1, NULL);
-  xTaskCreate(motorControl, "motorControl", 1024 * 10, NULL, 1, NULL);
-  xTaskCreate(modeIdentify, "modeIdentify", 1024 * 10, NULL, 1, NULL);
-  xTaskCreate(temperatureRead, "temperatureRead", 1024 * 10, NULL, 1, NULL);
-  xTaskCreate(ledUpdate, "ledUpdate", 1024 * 10, NULL, 1, NULL);
-  xTaskCreate(buttonTask, "ButtonTask", 1024 * 10, NULL, 1, NULL);
+  xTaskCreatePinnedToCore(ledUpdate, "ledUpdate", 1024 * 10, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(buzzerUpdate, "buzzerUpdate", 1024 * 10, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(dataSent, "dataSent", 1024 * 10, NULL, 2, NULL, 0);
+  xTaskCreatePinnedToCore(esp_now_connection_check, "esp_now_connection_check", 1024 * 10, NULL, 2, NULL, 0);
+  xTaskCreatePinnedToCore(buttonTask, "ButtonTask", 1024 * 10, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(modeIdentify, "modeIdentify", 1024 * 10, NULL, 1, NULL, 0);
+  xTaskCreatePinnedToCore(motorControl, "motorControl", 1024 * 16, NULL, 2, NULL, 1);
+  xTaskCreatePinnedToCore(temperatureRead, "temperatureRead", 1024 * 10, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(stepper_control_task, "stepper_control_task", 1024 * 10, NULL, 3, NULL, 1);
+  xTaskCreatePinnedToCore(ina226_task, "ina226_task", 1024 * 10, NULL, 1, NULL, 1);
 }
+
 void loop() {
   vTaskDelay(1000 / portTICK_PERIOD_MS);
 }

@@ -103,6 +103,8 @@ void ina226_init() {
 }
 
 void ina226_task(void* pvParameters) {
+  TickType_t       xLastWakeTime = xTaskGetTickCount();
+  const TickType_t xPeriod       = pdMS_TO_TICKS(500); // 延时 500ms，频率 = 1000 / 500 = 2 Hz，即每秒执行 2 次。
   while (1) {
     busVoltage      = ina.getBusVoltage();
     shuntVoltage    = ina.getShuntVoltage_mV();
@@ -112,7 +114,7 @@ void ina226_task(void* pvParameters) {
     ESP_LOGI(TAG, "Shunt Voltage: %.3f mV\n", shuntVoltage);
     ESP_LOGI(TAG, "Current: %.3f A\n", H_BridgeCurrent);
     ESP_LOGI(TAG, "Power: %.3f W\n", power);
-    vTaskDelay(1000 / portTICK_PERIOD_MS); // 每秒更新一次数据
+    vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }
 }
 

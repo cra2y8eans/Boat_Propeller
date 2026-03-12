@@ -14,9 +14,9 @@ static uint8_t buzzerPin = 39;
  *          (空闲状态)    (鸣叫中)    (间隔中)      (鸣叫中)         (空闲)
  */
 typedef enum {
-  BUZZER_IDLE,  // 空闲状态：蜂鸣器不工作，等待调用buzzer()启动
-  BUZZER_ON,    // 鸣叫状态：蜂鸣器正在发声
-  BUZZER_OFF    // 间隔状态：蜂鸣器关闭，等待下次鸣叫
+  BUZZER_IDLE, // 空闲状态：蜂鸣器不工作，等待调用buzzer()启动
+  BUZZER_ON,   // 鸣叫状态：蜂鸣器正在发声
+  BUZZER_OFF   // 间隔状态：蜂鸣器关闭，等待下次鸣叫
 } BuzzerState;
 
 // ===== 状态机变量 =====
@@ -47,15 +47,15 @@ void buzzerInit() {
  */
 void buzzer(uint8_t times, uint16_t duration, uint16_t interval) {
   if (times == 0) return;
-  
+
   remainingBeeps  = times;
   currentDuration = duration;
   currentInterval = interval;
-  
+
   if (times == 1) {
     currentInterval = 0;
   }
-  
+
   buzzerState    = BUZZER_ON;
   stateStartTime = millis();
   digitalWrite(buzzerPin, HIGH);
@@ -69,41 +69,41 @@ void buzzer(uint8_t times, uint16_t duration, uint16_t interval) {
 void buzzerUpdate(void* pvParameter) {
   while (1) {
     if (buzzerState == BUZZER_IDLE) {
-      vTaskDelay(10 / portTICK_PERIOD_MS);
+      vTaskDelay(pdMS_TO_TICKS(10));
       continue;
     }
-    
-    uint32_t currentTime   = millis();
-    uint32_t elapsedTime    = currentTime - stateStartTime;
-    
+
+    uint32_t currentTime = millis();
+    uint32_t elapsedTime = currentTime - stateStartTime;
+
     switch (buzzerState) {
-      case BUZZER_ON:
-        if (elapsedTime >= currentDuration) {
-          digitalWrite(buzzerPin, LOW);
-          remainingBeeps--;
-          
-          if (remainingBeeps > 0 && currentInterval > 0) {
-            buzzerState    = BUZZER_OFF;
-            stateStartTime = currentTime;
-          } else {
-            buzzerState = BUZZER_IDLE;
-          }
-        }
-        break;
-        
-      case BUZZER_OFF:
-        if (elapsedTime >= currentInterval) {
-          buzzerState    = BUZZER_ON;
+    case BUZZER_ON:
+      if (elapsedTime >= currentDuration) {
+        digitalWrite(buzzerPin, LOW);
+        remainingBeeps--;
+
+        if (remainingBeeps > 0 && currentInterval > 0) {
+          buzzerState    = BUZZER_OFF;
           stateStartTime = currentTime;
-          digitalWrite(buzzerPin, HIGH);
+        } else {
+          buzzerState = BUZZER_IDLE;
         }
-        break;
-        
-      default:
-        buzzerState = BUZZER_IDLE;
-        break;
+      }
+      break;
+
+    case BUZZER_OFF:
+      if (elapsedTime >= currentInterval) {
+        buzzerState    = BUZZER_ON;
+        stateStartTime = currentTime;
+        digitalWrite(buzzerPin, HIGH);
+      }
+      break;
+
+    default:
+      buzzerState = BUZZER_IDLE;
+      break;
     }
-    
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+
+    vTaskDelay(pdMS_TO_TICKS(10));
   }
 }

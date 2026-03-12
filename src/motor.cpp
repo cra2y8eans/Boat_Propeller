@@ -37,7 +37,7 @@ volatile uint8_t       stepSpeed         = 0;                            // 步�
 ControlMode readCurrentModeWithDebounce() {
   int readHand_1 = digitalRead(on_hand_pin);
   int readFoot_1 = digitalRead(on_foot_pin);
-  vTaskDelay(SWITCH_DEBOUNCE_DELAY / portTICK_PERIOD_MS); // 延时20ms，消抖
+  vTaskDelay(pdMS_TO_TICKS(SWITCH_DEBOUNCE_DELAY)); // 延时20ms，消抖
   int readHand_2 = digitalRead(on_hand_pin);
   int readFoot_2 = digitalRead(on_foot_pin);
 
@@ -140,6 +140,8 @@ static void handleMotorRamp(bool enable, uint8_t target_pwm, bool target_dir) {
 }
 
 void modeIdentify(void* pvParameters) {
+  TickType_t       xLastWakeTime = xTaskGetTickCount();
+  const TickType_t xPeriod       = pdMS_TO_TICKS(500); // 延时 500ms，频率 = 1000 / 500 = 2 Hz，即每秒执行 2 次。
   while (1) {
     if (isFootPadOnline) {
       current_ctrl_mode = readCurrentModeWithDebounce();
@@ -153,11 +155,13 @@ void modeIdentify(void* pvParameters) {
       current_ctrl_mode = STANDBY_MODE; // 如果断线，返回待机模式
       ESP_LOGE(TAG, "脚控不在线，返回待机模式");
     }
-    vTaskDelay(500 / portTICK_PERIOD_MS);
+    vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }
 }
 
 void motorControl(void* pvParameters) {
+  TickType_t       xLastWakeTime = xTaskGetTickCount();
+  const TickType_t xPeriod       = pdMS_TO_TICKS(10); // 延时 10ms，频率 = 1000 / 10 = 100 Hz，即每秒执行 100 次。
   while (1) {
     bool dirReverse;
     taskENTER_CRITICAL(&motor_mutex);
@@ -210,7 +214,7 @@ void motorControl(void* pvParameters) {
     default:
       break;
     }
-    vTaskDelay(pdMS_TO_TICKS(10)); // 添加短延时，避免任务占用过高
+    vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }
 }
 

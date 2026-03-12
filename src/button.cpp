@@ -57,6 +57,6 @@ void buttonTask(void* pvParameters) {
   while (1) {
     accelButton.tick();
     decelButton.tick();
-    vTaskDelay(50 / portTICK_PERIOD_MS);
+    vTaskDelay(pdMS_TO_TICKS(50));
   }
 }

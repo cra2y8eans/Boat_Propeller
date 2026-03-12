@@ -97,6 +97,8 @@ void esp_now_setup() {
  * @note      通过保存和对比上次连接状态，判断设备是否重连，并调用蜂鸣器短鸣提示重连
  */
 void esp_now_connection_check(void* pvParameters) {
+  TickType_t           xLastWakeTime               = xTaskGetTickCount();
+  const TickType_t     xPeriod                     = pdMS_TO_TICKS(100); // 延时 100ms，频率 = 1000 / 100 = 10 Hz，即每秒执行 10 次。
   static bool          foot_last_connection_state  = false;
   static bool          debug_last_connection_state = false;
   static unsigned long last_disconnect_alert       = 0;
@@ -129,11 +131,13 @@ void esp_now_connection_check(void* pvParameters) {
       buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
       debug_last_connection_state = true;
     }
-    vTaskDelay(100 / portTICK_PERIOD_MS);
+    vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }
 }
 
 void dataSent(void* pvParameters) {
+  TickType_t       xLastWakeTime = xTaskGetTickCount();
+  const TickType_t xPeriod       = pdMS_TO_TICKS(100); // 延时 100ms，频率 = 1000 / 100 = 10 Hz，即每秒执行 10 次。
   while (1) {
     if (isFootPadOnline) {
       esp_now_send(FootPadMacAddr, (uint8_t*)&sendToPad, sizeof(sendToPad));
@@ -152,6 +156,6 @@ void dataSent(void* pvParameters) {
       toDebug.vPad_mv = vPad;
       esp_now_send(DebugMacAddr, (uint8_t*)&toDebug, sizeof(toDebug));
     }
-    vTaskDelay(100 / portTICK_PERIOD_MS);
+    vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }
 }

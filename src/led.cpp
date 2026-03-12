@@ -141,6 +141,6 @@ void ledUpdate(void* pvParameter) {
     default:
       break;
     }
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+    vTaskDelay(pdMS_TO_TICKS(10));
   }
 }

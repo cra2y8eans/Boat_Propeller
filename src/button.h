@@ -12,6 +12,9 @@
 #define BUTTON_EVENT_SHORT_PRESS 1
 #define BUTTON_EVENT_LONG_PRESS 2
 
+extern volatile bool isAccelButtonLongPressed;
+extern volatile bool isDecelButtonLongPressed;
+
 // 事件结构体
 struct ButtonEvent_t {
   uint8_t button; // ACCEL_BUTTON 或 DECEL_BUTTON

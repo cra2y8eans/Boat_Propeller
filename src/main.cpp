@@ -21,7 +21,7 @@ void setup() {
   buttonInit();
   stepper_init();
   motorInit();
-  ina226_init();
+  // ina226_init();
   NTC_Init();
 
   xTaskCreatePinnedToCore(ledUpdate, "ledUpdate", 1024 * 10, NULL, 1, NULL, 1);
@@ -33,9 +33,9 @@ void setup() {
   xTaskCreatePinnedToCore(motorControl, "motorControl", 1024 * 16, NULL, 2, NULL, 1);
   xTaskCreatePinnedToCore(temperatureRead, "temperatureRead", 1024 * 10, NULL, 1, NULL, 1);
   xTaskCreatePinnedToCore(stepper_control_task, "stepper_control_task", 1024 * 10, NULL, 3, NULL, 1);
-  xTaskCreatePinnedToCore(ina226_task, "ina226_task", 1024 * 10, NULL, 1, NULL, 1);
+  // xTaskCreatePinnedToCore(ina226_task, "ina226_task", 1024 * 10, NULL, 1, NULL, 1);
 }
 
 void loop() {
-  vTaskDelay(1000 / portTICK_PERIOD_MS);
+  vTaskDelay(pdMS_TO_TICKS(1000));
 }

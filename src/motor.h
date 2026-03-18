@@ -16,3 +16,4 @@ void        modeIdentify(void* pvParameters);
 void        motorControl(void* pvParameters);
 ControlMode getCurrentCtrlMode(); // 获取当前控制模式
 uint8_t     getStepSpeed();       // 获取当前步进电机转速
+void        motorEmergencyStop();

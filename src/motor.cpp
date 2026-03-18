@@ -3,6 +3,7 @@
 #include "button.h"
 #include "buzzer.h"
 #include "esp_log.h"
+#include "fault.h"
 #include "led.h"
 #include <Arduino.h>
 
@@ -139,10 +140,22 @@ static void handleMotorRamp(bool enable, uint8_t target_pwm, bool target_dir) {
   ledcWrite(motor_channel, current_speed);
 }
 
+void motorEmergencyStop() {
+  handleMotorRamp(0, 0, 0);
+  ESP_LOGE(TAG, "电机急停");
+}
+
 void modeIdentify(void* pvParameters) {
   TickType_t       xLastWakeTime = xTaskGetTickCount();
   const TickType_t xPeriod       = pdMS_TO_TICKS(500); // 延时 500ms，频率 = 1000 / 500 = 2 Hz，即每秒执行 2 次。
+  uint32_t         lastCheck     = 0;
   while (1) {
+    // 每 1000 次循环或每 5 秒检查一次栈水位
+    if (millis() - lastCheck > 5000) {
+      UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
+      ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
+      lastCheck = millis();
+    }
     if (isFootPadOnline) {
       current_ctrl_mode = readCurrentModeWithDebounce();
       if (current_ctrl_mode != last_ctrl_mode) {
@@ -162,7 +175,19 @@ void modeIdentify(void* pvParameters) {
 void motorControl(void* pvParameters) {
   TickType_t       xLastWakeTime = xTaskGetTickCount();
   const TickType_t xPeriod       = pdMS_TO_TICKS(10); // 延时 10ms，频率 = 1000 / 10 = 100 Hz，即每秒执行 100 次。
+  uint32_t         lastCheck     = 0;
   while (1) {
+    // 每 1000 次循环或每 5 秒检查一次栈水位
+    if (millis() - lastCheck > 5000) {
+      UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
+      ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
+      lastCheck = millis();
+    }
+    // 如果H桥故障，后续操作无效
+    if (isH_BridgeFault) {
+      vTaskDelayUntil(&xLastWakeTime, xPeriod);
+      continue;
+    }
     bool dirReverse;
     taskENTER_CRITICAL(&motor_mutex);
     target_speed = map(FootPadData.speed, 0, 4095, 0, 255);

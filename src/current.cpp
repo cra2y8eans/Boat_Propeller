@@ -105,7 +105,14 @@ void ina226_init() {
 void ina226_task(void* pvParameters) {
   TickType_t       xLastWakeTime = xTaskGetTickCount();
   const TickType_t xPeriod       = pdMS_TO_TICKS(500); // 延时 500ms，频率 = 1000 / 500 = 2 Hz，即每秒执行 2 次。
+  uint32_t         lastCheck     = 0;
   while (1) {
+    // 每 1000 次循环或每 5 秒检查一次栈水位
+    if (millis() - lastCheck > 5000) {
+      UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
+      ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
+      lastCheck = millis();
+    }
     busVoltage      = ina.getBusVoltage();
     shuntVoltage    = ina.getShuntVoltage_mV();
     H_BridgeCurrent = ina.getCurrent();

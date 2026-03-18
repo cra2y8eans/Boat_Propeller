@@ -2,6 +2,7 @@
 #include "ESPNOW.h"
 #include "button.h"
 #include "esp_log.h"
+#include "fault.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "motor.h"
@@ -28,16 +29,34 @@ static uint16_t speedToMicroseconds(uint8_t level) {
   return 1000 + (level - 1) * 750;
 }
 
-void stepper_control_task(void* pvParameter) {
-  uint32_t nextToggleTime = 0;     // 下一次引脚切换时间（微秒）
-  bool     pinState       = false; // 当前 step_on 引脚电平
-  bool     pulseActive    = false; // 是否正在产生脉冲序列
-  uint32_t pulseInterval  = 2000;  // 默认脉冲间隔（微秒）
+void stepperEmergencyStop() {
+  digitalWrite(step_en, HIGH);
+  digitalWrite(step_on, LOW);
+  isSleeped = true;
+  ESP_LOGI(TAG, "步进电机紧急停止");
+}
 
+void stepper_control_task(void* pvParameter) {
+  uint32_t         nextToggleTime = 0;     // 下一次引脚切换时间（微秒）
+  bool             pinState       = false; // 当前 step_on 引脚电平
+  bool             pulseActive    = false; // 是否正在产生脉冲序列
+  uint32_t         pulseInterval  = 2000;  // 默认脉冲间隔（微秒）
+  TickType_t       xLastWakeTime  = xTaskGetTickCount();
+  const TickType_t xPeriod        = pdMS_TO_TICKS(1); // 单位ms，换算为频率： 1000Hz → 周期为 1000次/秒
+  uint32_t         lastCheck      = 0;
   while (1) {
-    TickType_t       xLastWakeTime = xTaskGetTickCount();
-    const TickType_t xPeriod       = pdMS_TO_TICKS(1); // 单位ms，换算为频率： 1000Hz → 周期为 1000次/秒
-    uint32_t         now           = micros();
+    // 每 1000 次循环或每 5 秒检查一次栈水位
+    if (millis() - lastCheck > 5000) {
+      UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
+      ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
+      lastCheck = millis();
+    }
+    // 如果步进电机故障，则等待1秒后重试
+    if (isStepperFault) {
+      vTaskDelayUntil(&xLastWakeTime, xPeriod);
+      continue;
+    }
+    uint32_t now = micros();
     // 读取共享数据（临界区保护）
     taskENTER_CRITICAL(&step_Mux);
     ControlMode mode       = getCurrentCtrlMode();

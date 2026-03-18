@@ -13,8 +13,6 @@ volatile bool        isDecelButtonLongPressed = false; // 减速按钮长按标�
 
 static OneButton accelButton, decelButton;
 
-QueueHandle_t buttonQueue = xQueueCreate(10, sizeof(ButtonEvent_t));
-
 // 回调函数：使用局部结构体变量，避免共享
 // 短按回调
 static void accelButtonShortPressed() { // 加速
@@ -43,6 +41,7 @@ static void decelButtonLongPressed() { // 减速
 }
 
 void buttonInit() {
+  QueueHandle_t buttonQueue = xQueueCreate(10, sizeof(ButtonEvent_t));
   accelButton.setup(ACCEL_BUTTON_PIN, INPUT_PULLDOWN);
   decelButton.setup(DECEL_BUTTON_PIN, INPUT_PULLDOWN);
   accelButton.attachClick(accelButtonShortPressed);
@@ -54,7 +53,14 @@ void buttonInit() {
 }
 
 void buttonTask(void* pvParameters) {
+  uint32_t lastCheck = 0;
   while (1) {
+    // 每 1000 次循环或每 5 秒检查一次栈水位
+    if (millis() - lastCheck > 5000) {
+      UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
+      ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
+      lastCheck = millis();
+    }
     accelButton.tick();
     decelButton.tick();
     vTaskDelay(pdMS_TO_TICKS(50));

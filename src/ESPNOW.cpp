@@ -38,7 +38,12 @@ struct sendToDebug_t {
       power_MW,
       temp_PCB,
       temp_h_mos,
-      temp_l_mos;
+      temp_l_mos,
+      temp_MCU;
+  bool isH_BridgeFault,
+      isChopping,
+      isStepperFault,
+      isDrv8872Fault;
 };
 sendToDebug_t toDebug;
 
@@ -103,7 +108,16 @@ void esp_now_connection_check(void* pvParameters) {
   static bool          debug_last_connection_state = false;
   static unsigned long last_disconnect_alert       = 0;
   const unsigned long  DISCONNECT_ALERT_INTERVAL   = 2000;
+
+  uint32_t lastCheck = 0;
   while (1) {
+    // 每 1000 次循环或每 5 秒检查一次栈水位
+    if (millis() - lastCheck > 5000) {
+      UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
+      ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
+      lastCheck = millis();
+    }
+
     unsigned long currentTime = millis();
     isFootPadOnline           = (currentTime - lastRecvFromPad <= RECV_TIMEOUT);
     isDebugDeviceOnline       = (currentTime - lastRecvFromDebug <= RECV_TIMEOUT);
@@ -138,7 +152,14 @@ void esp_now_connection_check(void* pvParameters) {
 void dataSent(void* pvParameters) {
   TickType_t       xLastWakeTime = xTaskGetTickCount();
   const TickType_t xPeriod       = pdMS_TO_TICKS(100); // 延时 100ms，频率 = 1000 / 100 = 10 Hz，即每秒执行 10 次。
-  while (1) {
+  uint32_t         lastCheck     = 0;
+  while (1) { // 每 1000 次循环或每 5 秒检查一次栈水位
+    if (millis() - lastCheck > 5000) {
+      UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
+      ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
+      lastCheck = millis();
+    }
+
     if (isFootPadOnline) {
       esp_now_send(FootPadMacAddr, (uint8_t*)&sendToPad, sizeof(sendToPad));
     }
@@ -150,6 +171,7 @@ void dataSent(void* pvParameters) {
       toDebug.temp_PCB   = getPCBtemp();
       toDebug.temp_h_mos = getHighMosTemp();
       toDebug.temp_l_mos = getLowMosTemp();
+      toDebug.temp_MCU   = getChipTemp();
       taskENTER_CRITICAL(&esp_now_Mux);
       vPad = FootPadData.batVoltage;
       taskEXIT_CRITICAL(&esp_now_Mux);

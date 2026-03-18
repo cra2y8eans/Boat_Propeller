@@ -6,6 +6,9 @@
 #define MIN_BRIGHTNESS 0
 #define STANDARD_BRIGHTNESS 100
 
+
+static const char* TAG = "LED";
+
 // ===== 硬件配置 =====
 static const uint8_t SYS_WS2812_PIN  = 16;
 static const uint8_t MODE_WS2812_PIN = 15;
@@ -89,7 +92,15 @@ void ledSetMode(Adafruit_NeoPixel& myRGB, enum LEDMode mode, uint32_t color, uin
  * @brief LED状态机更新函数（非阻塞）
  */
 void ledUpdate(void* pvParameter) {
+  uint32_t lastCheck = 0;
   while (1) {
+    // 每 1000 次循环或每 5 秒检查一次栈水位
+    if (millis() - lastCheck > 5000) {
+      UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
+      ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
+      lastCheck = millis();
+    }
+
     // 更新系统LED
     LedController* sysCtrl        = &sysLedCtrl;
     uint32_t       sysElapsedTime = millis() - sysCtrl->stateStartTime;

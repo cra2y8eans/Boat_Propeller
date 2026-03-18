@@ -194,10 +194,17 @@ float TemperatureReading(Filters::LowPass& filter, uint8_t pin) {
   return t;
 }
 
-void temperatureRead(void* pvParameters) {
+void NTC_task(void* pvParameters) {
   TickType_t       xLastWakeTime = xTaskGetTickCount();
   const TickType_t xPeriod       = pdMS_TO_TICKS(1000); // 延时 1000ms，频率 = 1000 / 1000 = 1 Hz，即每秒执行 1 次。
+  uint32_t         lastCheck     = 0;
   while (1) {
+    // 每 1000 次循环或每 5 秒检查一次栈水位
+    if (millis() - lastCheck > 5000) {
+      UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
+      ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
+      lastCheck = millis();
+    }
     PCB_Temperature      = TemperatureReading(PCB_NTC_Filter, ntc_pcb_pin);
     High_Mos_Temperature = TemperatureReading(High_Mos_NTC_Filter, ntc_high_mos_pin);
     Low_Mos_Temperature  = TemperatureReading(Low_Mos_NTC_Filter, ntc_low_mos_pin);
@@ -214,4 +221,8 @@ float getHighMosTemp() {
 }
 float getLowMosTemp() {
   return Low_Mos_Temperature;
+}
+float getChipTemp() {
+  int temp = temperatureRead();
+  return temp;
 }

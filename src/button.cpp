@@ -4,6 +4,8 @@
 #include <Arduino.h>
 #include <OneButton.h>
 
+QueueHandle_t buttonQueue = NULL;
+
 #define LONG_PRESS_DEBOUNCE_MS 800
 static const char*   TAG                      = "button";
 static const uint8_t ACCEL_BUTTON_PIN         = 40;

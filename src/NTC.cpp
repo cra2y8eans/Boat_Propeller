@@ -223,6 +223,6 @@ float getLowMosTemp() {
   return Low_Mos_Temperature;
 }
 float getChipTemp() {
-  int temp = temperatureRead();
+  float temp = temperatureRead();
   return temp;
 }

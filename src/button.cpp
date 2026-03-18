@@ -41,7 +41,7 @@ static void decelButtonLongPressed() { // 减速
 }
 
 void buttonInit() {
-  QueueHandle_t buttonQueue = xQueueCreate(10, sizeof(ButtonEvent_t));
+  buttonQueue = xQueueCreate(10, sizeof(ButtonEvent_t));
   accelButton.setup(ACCEL_BUTTON_PIN, INPUT_PULLDOWN);
   decelButton.setup(DECEL_BUTTON_PIN, INPUT_PULLDOWN);
   accelButton.attachClick(accelButtonShortPressed);

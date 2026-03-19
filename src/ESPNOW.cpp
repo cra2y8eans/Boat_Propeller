@@ -6,6 +6,7 @@
 #include "current.h"
 #include "esp_log.h"
 #include "led.h"
+#include "motor.h"
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_now.h>
@@ -19,11 +20,10 @@ esp_now_peer_info_t BoatPropeller;
 
 static const char*            TAG                 = "ESPNOW";
 static const uint16_t         RECV_TIMEOUT        = 500;
-static const uint8_t          FootPadMacAddr[6]   = { };
+static const uint8_t          FootPadMacAddr[6]   = { 0x08, 0xa6, 0xf7, 0x1b, 0xb2, 0xcc }; // footpad ???
 static const uint8_t          DebugMacAddr[6]     = { 0xF0, 0x9E, 0x9E, 0xAE, 0x14, 0x64 }; // C3 super mini 无排针
 static volatile unsigned long lastRecvFromDebug   = 0;
 static volatile unsigned long lastRecvFromPad     = 0;
-static volatile uint8_t       sendToPad           = 0; // 发送到脚控的数据，只是用来验证连接状态，无实际用途
 static volatile uint8_t       RecvFromDebug       = 0; // 接收来自调试设备的数据，只是用来验证连接状态，无实际用途
 volatile bool                 isDebugDeviceOnline = false;
 volatile bool                 isFootPadOnline     = false;
@@ -161,10 +161,10 @@ void dataSent(void* pvParameters) {
     }
 
     if (isFootPadOnline) {
-      esp_now_send(FootPadMacAddr, (uint8_t*)&sendToPad, sizeof(sendToPad));
+      ControlMode mode = getCurrentCtrlMode();
+      esp_now_send(FootPadMacAddr, (uint8_t*)&mode, sizeof(mode));
     }
     if (isDebugDeviceOnline) {
-      float vPad;
       toDebug.vBus_MV    = getBusVoltageMV();
       toDebug.current_MA = getCurrentMA();
       toDebug.power_MW   = getPowerMW();
@@ -173,9 +173,8 @@ void dataSent(void* pvParameters) {
       toDebug.temp_l_mos = getLowMosTemp();
       toDebug.temp_MCU   = getChipTemp();
       taskENTER_CRITICAL(&esp_now_Mux);
-      vPad = FootPadData.batVoltage;
+      toDebug.vPad_mv = FootPadData.batVoltage;
       taskEXIT_CRITICAL(&esp_now_Mux);
-      toDebug.vPad_mv = vPad;
       esp_now_send(DebugMacAddr, (uint8_t*)&toDebug, sizeof(toDebug));
     }
     vTaskDelayUntil(&xLastWakeTime, xPeriod);

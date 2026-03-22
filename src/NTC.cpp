@@ -271,9 +271,9 @@ static volatile float PCB_Temperature      = 0.0f;
 static volatile float High_Mos_Temperature = 0.0f;
 static volatile float Low_Mos_Temperature  = 0.0f;
 
-Filters ::LowPass PCB_NTC_Filter(LOW_PASS_ALPHA);
-Filters ::LowPass High_Mos_NTC_Filter(LOW_PASS_ALPHA);
-Filters ::LowPass Low_Mos_NTC_Filter(LOW_PASS_ALPHA);
+Filters::LowPass PCB_NTC_Filter(LOW_PASS_ALPHA);
+Filters::LowPass High_Mos_NTC_Filter(LOW_PASS_ALPHA);
+Filters::LowPass Low_Mos_NTC_Filter(LOW_PASS_ALPHA);
 
 void NTC_Init() {
   analogReadResolution(12);

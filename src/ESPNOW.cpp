@@ -34,12 +34,14 @@ volatile RecvFromFootPad_t FootPadData; // 接收来自脚控的数据
 struct sendToDebug_t {
   float vBus_MV,
       vPad_mv,
+      vPad_percentage,
       current_MA,
       power_MW,
       temp_PCB,
       temp_h_mos,
       temp_l_mos,
-      temp_MCU;
+      temp_MCU,
+      temp_footPadMCU;
   bool isH_BridgeFault,
       isChopping,
       isStepperFault,
@@ -173,7 +175,9 @@ void dataSent(void* pvParameters) {
       toDebug.temp_l_mos = getLowMosTemp();
       toDebug.temp_MCU   = getChipTemp();
       taskENTER_CRITICAL(&esp_now_Mux);
-      toDebug.vPad_mv = FootPadData.batVoltage;
+      toDebug.vPad_mv         = FootPadData.batVoltage;
+      toDebug.vPad_percentage = FootPadData.batPercentage;
+      toDebug.temp_footPadMCU = FootPadData.footPadChipTemp;
       taskEXIT_CRITICAL(&esp_now_Mux);
       esp_now_send(DebugMacAddr, (uint8_t*)&toDebug, sizeof(toDebug));
     }

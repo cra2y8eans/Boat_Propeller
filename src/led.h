@@ -9,13 +9,13 @@
 #define LONG_FLASH_DURATION 500
 #define LONG_FLASH_INTERVAL 500
 
-#define COLOR_RED    0xFF0000
-#define COLOR_GREEN  0x00FF00
-#define COLOR_BLUE   0x0000FF
+#define COLOR_RED 0xFF0000
+#define COLOR_GREEN 0x00FF00
+#define COLOR_BLUE 0x0000FF
 #define COLOR_YELLOW 0xFF2800
-#define COLOR_WHITE  0xFFFFFF
-#define COLOR_CYAN   0x00FFFF
-#define COLOR_OFF    0x000000
+#define COLOR_WHITE 0xFFFFFF
+#define COLOR_CYAN 0x00FFFF
+#define COLOR_OFF 0x000000
 
 // ===== LED对象 =====
 extern Adafruit_NeoPixel sysRGB;
@@ -23,10 +23,10 @@ extern Adafruit_NeoPixel modeRGB;
 
 // ===== LED模式枚举 =====
 enum LEDMode {
-  LED_ON,      // 常亮
-  LED_OFF,     // 关闭
-  LED_BLINK,   // 持续闪烁
-  LED_IDLE,    // 空闲
+  LED_ON,    // 常亮
+  LED_OFF,   // 关闭
+  LED_BLINK, // 持续闪烁
+  LED_IDLE,  // 空闲
 };
 
 // ===== 公共接口 =====

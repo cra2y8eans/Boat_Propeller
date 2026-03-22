@@ -8,8 +8,8 @@
 
 struct RecvFromFootPad_t {
   uint16_t speed;
-  bool     data[4] = {}; // 0、左转，1、右转，2、电推，3、功能
-  float    batVoltage;
+  bool     data[4] = { }; // 0、左转，1、右转，2、电推，3、功能
+  float    batVoltage, batPercentage, footPadChipTemp;
 };
 extern volatile RecvFromFootPad_t FootPadData;
 

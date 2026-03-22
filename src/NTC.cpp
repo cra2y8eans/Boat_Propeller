@@ -14,7 +14,7 @@ static const char* TAG = "NTC";
  *        数据来源：MF51-103F3950L60 规格书 R/T 表
  *        索引 = 温度值（℃）
  */
-const float res_table[121] = {
+const float res_table_mos[121] = {
   31.898, // 0°C
   30.377, // 1°C
   28.939, // 2°C
@@ -138,6 +138,131 @@ const float res_table[121] = {
   0.386   // 120°C
 };
 
+// PCB 贴片 NTC (HNTC0805-103F3950FB)
+const float res_table_pcb[121] = {
+  32.814, // 0°C
+  31.179, // 1°C
+  29.636, // 2°C
+  28.178, // 3°C
+  26.800, // 4°C
+  25.497, // 5°C
+  24.263, // 6°C
+  23.096, // 7°C
+  21.992, // 8°C
+  20.947, // 9°C
+  19.958, // 10°C
+  19.022, // 11°C
+  18.135, // 12°C
+  17.294, // 13°C
+  16.498, // 14°C
+  15.742, // 15°C
+  15.025, // 16°C
+  14.345, // 17°C
+  13.699, // 18°C
+  13.086, // 19°C
+  12.504, // 20°C
+  11.951, // 21°C
+  11.426, // 22°C
+  10.926, // 23°C
+  10.452, // 24°C
+  10.000, // 25°C
+  9.570,  // 26°C
+  9.162,  // 27°C
+  8.773,  // 28°C
+  8.402,  // 29°C
+  8.049,  // 30°C
+  7.713,  // 31°C
+  7.393,  // 32°C
+  7.088,  // 33°C
+  6.797,  // 34°C
+  6.520,  // 35°C
+  6.255,  // 36°C
+  6.003,  // 37°C
+  5.762,  // 38°C
+  5.532,  // 39°C
+  5.313,  // 40°C
+  5.103,  // 41°C
+  4.903,  // 42°C
+  4.711,  // 43°C
+  4.529,  // 44°C
+  4.354,  // 45°C
+  4.187,  // 46°C
+  4.027,  // 47°C
+  3.874,  // 48°C
+  3.728,  // 49°C
+  3.588,  // 50°C
+  3.454,  // 51°C
+  3.326,  // 52°C
+  3.203,  // 53°C
+  3.086,  // 54°C
+  2.973,  // 55°C
+  2.865,  // 56°C
+  2.761,  // 57°C
+  2.662,  // 58°C
+  2.567,  // 59°C
+  2.476,  // 60°C
+  2.388,  // 61°C
+  2.304,  // 62°C
+  2.224,  // 63°C
+  2.146,  // 64°C
+  2.072,  // 65°C
+  2.001,  // 66°C
+  1.932,  // 67°C
+  1.866,  // 68°C
+  1.803,  // 69°C
+  1.742,  // 70°C
+  1.684,  // 71°C
+  1.628,  // 72°C
+  1.574,  // 73°C
+  1.522,  // 74°C
+  1.472,  // 75°C
+  1.424,  // 76°C
+  1.378,  // 77°C
+  1.333,  // 78°C
+  1.290,  // 79°C
+  1.249,  // 80°C
+  1.209,  // 81°C
+  1.171,  // 82°C
+  1.134,  // 83°C
+  1.099,  // 84°C
+  1.065,  // 85°C
+  1.032,  // 86°C
+  1.000,  // 87°C
+  0.969,  // 88°C
+  0.940,  // 89°C
+  0.911,  // 90°C
+  0.884,  // 91°C
+  0.857,  // 92°C
+  0.831,  // 93°C
+  0.807,  // 94°C
+  0.783,  // 95°C
+  0.760,  // 96°C
+  0.738,  // 97°C
+  0.716,  // 98°C
+  0.695,  // 99°C
+  0.675,  // 100°C
+  0.656,  // 101°C
+  0.637,  // 102°C
+  0.619,  // 103°C
+  0.602,  // 104°C
+  0.585,  // 105°C
+  0.569,  // 106°C
+  0.553,  // 107°C
+  0.538,  // 108°C
+  0.523,  // 109°C
+  0.508,  // 110°C
+  0.495,  // 111°C
+  0.481,  // 112°C
+  0.468,  // 113°C
+  0.456,  // 114°C
+  0.443,  // 115°C
+  0.432,  // 116°C
+  0.420,  // 117°C
+  0.409,  // 118°C
+  0.399,  // 119°C
+  0.388   // 120°C
+};
+
 static uint8_t ntc_pcb_pin      = 5;
 static uint8_t ntc_high_mos_pin = 6;
 static uint8_t ntc_low_mos_pin  = 4;
@@ -161,36 +286,26 @@ void NTC_Init() {
  * @brief 根据毫伏读数计算当前温度（查电阻表 + 线性插值）
  * @param filter 低通滤波器对象（引用）
  * @param pin    ADC 引脚
+ * @param table  电阻表数组（需包含 0~120℃ 共 121 个值）
  * @return       温度值（℃），若超出 0~120℃ 则返回 -1
  */
-float TemperatureReading(Filters::LowPass& filter, uint8_t pin) {
-  // 1. 读取毫伏值并滤波
+float TemperatureReading(Filters::LowPass& filter, uint8_t pin, const float* table) {
   float raw_mv      = analogReadMilliVolts(pin);
   float filtered_mv = filter.update(raw_mv);
-  // 2. 计算 NTC 电阻值（单位 KΩ）
-  //    电路：3.3V —— 10K 固定电阻 —— ADC —— NTC —— GND
-  //    公式：R_ntc = 10K * V_mv / (3300 - V_mv)
   if (filtered_mv <= 0 || filtered_mv >= 3300) {
-    // 无效的电压值，直接返回 -1 表示异常
     return -1.0f;
   }
-  float r_ntc = 10000.0f * filtered_mv / (3300.0f - filtered_mv) / 1000.0f; // 转换为 KΩ
-  // 3. 边界检查：超出电阻表范围则返回 -1
-  if (r_ntc >= res_table[0]) { // 温度 ≤ 0℃
-    return -1.0f;
-  }
-  if (r_ntc <= res_table[120]) { // 温度 ≥ 120℃
-    return -1.0f;
-  }
-  // 4. 查找区间（电阻值递减）
+  float r_ntc = 10000.0f * filtered_mv / (3300.0f - filtered_mv) / 1000.0f; // KΩ
+
+  // 边界检查使用传入的表
+  if (r_ntc >= table[0]) return -1.0f;   // ≤0℃
+  if (r_ntc <= table[120]) return -1.0f; // ≥120℃
+
   int i = 0;
   for (i = 0; i < 120; i++) {
-    if (r_ntc <= res_table[i] && r_ntc >= res_table[i + 1]) {
-      break;
-    }
+    if (r_ntc <= table[i] && r_ntc >= table[i + 1]) break;
   }
-  // 5. 线性插值
-  float t = i + (res_table[i] - r_ntc) / (res_table[i] - res_table[i + 1]);
+  float t = i + (table[i] - r_ntc) / (table[i] - table[i + 1]);
   return t;
 }
 
@@ -205,9 +320,9 @@ void NTC_task(void* pvParameters) {
       ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
       lastCheck = millis();
     }
-    PCB_Temperature      = TemperatureReading(PCB_NTC_Filter, ntc_pcb_pin);
-    High_Mos_Temperature = TemperatureReading(High_Mos_NTC_Filter, ntc_high_mos_pin);
-    Low_Mos_Temperature  = TemperatureReading(Low_Mos_NTC_Filter, ntc_low_mos_pin);
+    PCB_Temperature      = TemperatureReading(PCB_NTC_Filter, ntc_pcb_pin, res_table_pcb);
+    High_Mos_Temperature = TemperatureReading(High_Mos_NTC_Filter, ntc_high_mos_pin, res_table_mos);
+    Low_Mos_Temperature  = TemperatureReading(Low_Mos_NTC_Filter, ntc_low_mos_pin, res_table_mos);
     ESP_LOGI(TAG, "PCB_Temperature: %.2f\n°C, High_Mos_Temperature: %.2f\n°C, Low_Mos_Temperature: %.2f\n°C", PCB_Temperature, High_Mos_Temperature, Low_Mos_Temperature);
     vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }

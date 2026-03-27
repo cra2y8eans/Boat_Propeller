@@ -10,6 +10,7 @@
 #include "led.h"
 #include "motor.h"
 #include "step.h"
+#include "web.h"
 #include <Arduino.h>
 #include <FreeRTOS.h>
 
@@ -40,6 +41,7 @@ void setup() {
   // xTaskCreatePinnedToCore(ina226_task, "ina226_task", 1024 * 3, NULL, 1, NULL, 1);
   // xTaskCreatePinnedToCore(Fan_task, "Fan_Task", 1024 * 2, NULL, 1, NULL, 1);
   // xTaskCreatePinnedToCore(fault_task, "fault_task", 1024 * 3, NULL, 3, &faultTaskHandle, 1);
+  xTaskCreatePinnedToCore(webTask, "webTask", 1024 * 8, NULL, 1, NULL, 1);
 }
 
 void loop() {

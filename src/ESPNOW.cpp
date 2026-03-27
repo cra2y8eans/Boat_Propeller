@@ -13,59 +13,25 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-// 定义临界区变量
-static portMUX_TYPE esp_now_Mux = portMUX_INITIALIZER_UNLOCKED;
+portMUX_TYPE  esp_now_Mux = portMUX_INITIALIZER_UNLOCKED;
 
 esp_now_peer_info_t BoatPropeller;
 
-static const char*            TAG                 = "ESPNOW";
-static const uint16_t         RECV_TIMEOUT        = 500;
-static const uint8_t          FootPadMacAddr[6]   = { 0x08, 0xa6, 0xf7, 0x1b, 0xb2, 0xcc }; // footpad ???
-static const uint8_t          DebugMacAddr[6]     = { 0xF0, 0x9E, 0x9E, 0xAE, 0x14, 0x64 }; // C3 super mini 无排针
-static volatile unsigned long lastRecvFromDebug   = 0;
-static volatile unsigned long lastRecvFromPad     = 0;
-static volatile uint8_t       RecvFromDebug       = 0; // 接收来自调试设备的数据，只是用来验证连接状态，无实际用途
-volatile bool                 isDebugDeviceOnline = false;
-volatile bool                 isFootPadOnline     = false;
+static const char*            TAG               = "ESPNOW";
+static const uint16_t         RECV_TIMEOUT      = 500;
+static const uint8_t          FootPadMacAddr[6] = { 0x08, 0xa6, 0xf7, 0x1b, 0xb2, 0xcc }; // footpad ???
+static volatile unsigned long lastRecvFromPad   = 0;
+volatile bool                 isFootPadOnline   = false;
 
 volatile RecvFromFootPad_t FootPadData; // 接收来自脚控的数据
 
-// 发送到调试设备的数据
-struct sendToDebug_t {
-  float vBus_MV,
-      vPad_mv,
-      vPad_percentage,
-      current_MA,
-      power_MW,
-      temp_PCB,
-      temp_h_mos,
-      temp_l_mos,
-      temp_MCU,
-      temp_footPadMCU;
-  bool isH_BridgeFault,
-      isChopping,
-      isStepperFault,
-      isDrv8872Fault;
-};
-sendToDebug_t toDebug;
-
 // 接收回调
 static void OnDataRecv(const uint8_t* mac, const uint8_t* data, int len) {
-  const uint8_t* fromMac = mac;
-  // memcmp函数比较两个内存区域的前n个字节是否相同，参数为比较对象1、比较对象2、比较长度。如果相同，返回0，否则返回非0值
-  if (memcmp(fromMac, FootPadMacAddr, 6) == 0) {
-    taskENTER_CRITICAL(&esp_now_Mux);
-    memcpy((void*)&FootPadData, data, sizeof(FootPadData)); // 强制转换指针，将data指针指向的内存拷贝到FootPadData指针指向的内存中
-    isFootPadOnline = true;                                 // 如果是脚控发来的数据，说明脚控在线
-    taskEXIT_CRITICAL(&esp_now_Mux);
-    lastRecvFromPad = millis();
-  } else if (memcmp(fromMac, DebugMacAddr, 6) == 0) {
-    taskENTER_CRITICAL(&esp_now_Mux);
-    memcpy((void*)&RecvFromDebug, data, sizeof(RecvFromDebug));
-    isDebugDeviceOnline = true;
-    taskEXIT_CRITICAL(&esp_now_Mux);
-    lastRecvFromDebug = millis();
-  }
+  taskENTER_CRITICAL(&esp_now_Mux);
+  memcpy((void*)&FootPadData, data, sizeof(FootPadData));
+  isFootPadOnline = true;
+  taskEXIT_CRITICAL(&esp_now_Mux);
+  lastRecvFromPad = millis();
 }
 
 // 发送回调
@@ -88,9 +54,6 @@ void esp_now_setup() {
   BoatPropeller.channel = 1;
   // 添加脚控对等节点
   memcpy(BoatPropeller.peer_addr, FootPadMacAddr, 6);
-  esp_now_add_peer(&BoatPropeller);
-  // 添加debug对等节点
-  memcpy(BoatPropeller.peer_addr, DebugMacAddr, 6);
   esp_now_add_peer(&BoatPropeller);
   ledSetMode(sysRGB, LED_BLINK, COLOR_YELLOW, LONG_FLASH_DURATION, LONG_FLASH_INTERVAL); // 闪黄灯，等待连接
 }
@@ -122,7 +85,6 @@ void esp_now_connection_check(void* pvParameters) {
 
     unsigned long currentTime = millis();
     isFootPadOnline           = (currentTime - lastRecvFromPad <= RECV_TIMEOUT);
-    isDebugDeviceOnline       = (currentTime - lastRecvFromDebug <= RECV_TIMEOUT);
 
     // 脚控掉线：只在刚掉线时报警
     if (!isFootPadOnline && foot_last_connection_state) {
@@ -142,11 +104,6 @@ void esp_now_connection_check(void* pvParameters) {
       ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
       last_disconnect_alert = currentTime;
     }
-    // Debug 设备连接状态变化
-    if (isDebugDeviceOnline && !debug_last_connection_state) {
-      buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-      debug_last_connection_state = true;
-    }
     vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }
 }
@@ -165,21 +122,6 @@ void dataSent(void* pvParameters) {
     if (isFootPadOnline) {
       ControlMode mode = getCurrentCtrlMode();
       esp_now_send(FootPadMacAddr, (uint8_t*)&mode, sizeof(mode));
-    }
-    if (isDebugDeviceOnline) {
-      toDebug.vBus_MV    = getBusVoltageMV();
-      toDebug.current_MA = getCurrentMA();
-      toDebug.power_MW   = getPowerMW();
-      toDebug.temp_PCB   = getPCBtemp();
-      toDebug.temp_h_mos = getHighMosTemp();
-      toDebug.temp_l_mos = getLowMosTemp();
-      toDebug.temp_MCU   = getChipTemp();
-      taskENTER_CRITICAL(&esp_now_Mux);
-      toDebug.vPad_mv         = FootPadData.batVoltage;
-      toDebug.vPad_percentage = FootPadData.batPercentage;
-      toDebug.temp_footPadMCU = FootPadData.footPadChipTemp;
-      taskEXIT_CRITICAL(&esp_now_Mux);
-      esp_now_send(DebugMacAddr, (uint8_t*)&toDebug, sizeof(toDebug));
     }
     vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }

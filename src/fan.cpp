@@ -23,6 +23,8 @@ static const float CHANNEL_FULL  = 70.0; // 风道风扇全速温度
 static const float HYSTERESIS    = 2.0;  // 迟滞范围
 static const float ALARM_TEMP    = 70.0; // 报警阈值（可独立设定）
 
+static int duty_heat, duty_chan;
+
 // 风扇控制结构体
 struct FanController {
   float start_temp; // 启动温度
@@ -71,6 +73,16 @@ static int updateFan(FanController& fc, float temp) {
 // 声明芯片温度读取函数（需在别处实现）
 float getChipTemp(); // 例如使用 temperatureRead()
 
+float getFanChanSpeed() {
+  float percentage = duty_chan / 255;
+  return percentage;
+}
+
+float getFanHeatSpeed() {
+  float percentage = duty_heat / 255;
+  return percentage;
+}
+
 void Fan_task(void* pvParameters) {
   static FanController heatFan   = { HEAT_START, HEAT_FULL, HYSTERESIS, false };
   static FanController chanFan   = { CHANNEL_START, CHANNEL_FULL, HYSTERESIS, false };
@@ -93,8 +105,8 @@ void Fan_task(void* pvParameters) {
     float all_max = max(mos_max, chip_temp);
 
     // 更新风扇占空比
-    int duty_heat = updateFan(heatFan, mos_max); // 散热片风扇只由MOS温度控制
-    int duty_chan = updateFan(chanFan, all_max); // 风道风扇由所有温度控制
+    duty_heat = updateFan(heatFan, mos_max); // 散热片风扇只由MOS温度控制
+    duty_chan = updateFan(chanFan, all_max); // 风道风扇由所有温度控制
 
     ledcWrite(fan_heat_channel, duty_heat);
     ledcWrite(fan_inout_channel, duty_chan);

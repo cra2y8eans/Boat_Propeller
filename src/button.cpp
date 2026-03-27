@@ -32,13 +32,13 @@ static void decelButtonShortPressed() { // 减速
 static void accelButtonLongPressed() { // 加速
   isAccelButtonLongPressed = !isAccelButtonLongPressed;
   ButtonEvent_t evt        = { ACCEL_BUTTON, BUTTON_EVENT_LONG_PRESS };
-  xQueueSend(buttonQueue, &evt, 0);
+  // xQueueSend(buttonQueue, &evt, 0);
   buzzer(1, LONG_BEEP_DURATION, 0);
 }
 static void decelButtonLongPressed() { // 减速
   isDecelButtonLongPressed = !isDecelButtonLongPressed;
   ButtonEvent_t evt        = { DECEL_BUTTON, BUTTON_EVENT_LONG_PRESS };
-  xQueueSend(buttonQueue, &evt, 0);
+  // xQueueSend(buttonQueue, &evt, 0);
   buzzer(1, LONG_BEEP_DURATION, 0);
 }
 

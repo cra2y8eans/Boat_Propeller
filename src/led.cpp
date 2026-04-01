@@ -2,8 +2,7 @@
 #include <Adafruit_NeoPixel.h>
 #include <Arduino.h>
 
-#define ARDUINO
-// #define PIO
+#define ARDUINO_IDE
 #define MAX_BRIGHTNESS 255
 #define MIN_BRIGHTNESS 0
 #define STANDARD_BRIGHTNESS 10
@@ -98,9 +97,9 @@ void ledUpdate(void* pvParameter) {
     // 每 1000 次循环或每 5 秒检查一次栈水位
     if (millis() - lastCheck > 5000) {
       UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
-#ifdef ARDUINO
+#ifdef ARDUINO_IDE
       Serial.printf("led更新任务 Stack left: %d\n", stackHighWater);
-#elif defined(PIO)
+#else
       ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
 #endif
       lastCheck = millis();

@@ -8,8 +8,7 @@
 #include "led.h"
 #include <Arduino.h>
 
-#define ARDUINO
-// #define PIO
+#define ARDUINO_IDE
 #define SPEED_STEP 8             // 每次调整的速度步长，值越大加速越快
 #define SPEED_SCALE_FACTOR 10    // 减速比例系数（用于智能减速），分母，值越小减速越快
 #define DIR_SWITCH_THRESH 5      // 允许切换方向的速度阈值（越小越安全）
@@ -74,36 +73,36 @@ void modeChangeOperation(ControlMode newMode) {
   ButtonEvent_t buttonEvent;
   switch (newMode) {
   case HAND_MODE: // 手控模式。该模式下电推转速由按钮控制。步进电机不工作。
-#ifdef ARDUINO
+#ifdef ARDUINO_IDE
     Serial.println("手控模式");
-#elif defined(PIO)
+#else
     ESP_LOGI(TAG, "手控模式");
 #endif
     ledSetMode(modeRGB, LED_ON, COLOR_GREEN, 0, 0);
     buzzer(1, SHORT_BEEP_DURATION, 0);
     break;
   case FOOT_MODE: // 脚控模式。该模式下电推转速由脚控控制。按钮可以控制步进电机转速
-#ifdef ARDUINO
+#ifdef ARDUINO_IDE
     Serial.println("脚控模式");
-#elif defined(PIO)
+#else
     ESP_LOGI(TAG, "脚控模式");
 #endif
     ledSetMode(modeRGB, LED_ON, COLOR_BLUE, 0, 0);
     buzzer(1, SHORT_BEEP_DURATION, 0);
     break;
   case CRUISE_MODE: // 巡航模式。该模式下电推转速由脚控控制。按钮可以控制步进电机转速
-#ifdef ARDUINO
+#ifdef ARDUINO_IDE
     Serial.println("巡航模式");
-#elif defined(PIO)
+#else
     ESP_LOGI(TAG, "巡航模式");
 #endif
     ledSetMode(modeRGB, LED_ON, COLOR_YELLOW, 0, 0);
     buzzer(1, SHORT_BEEP_DURATION, 0);
     break;
   case STANDBY_MODE:
-#ifdef ARDUINO
+#ifdef ARDUINO_IDE
     Serial.println("待机模式");
-#elif defined(PIO)
+#else
     ESP_LOGI(TAG, "待机模式");
 #endif
     ledSetMode(modeRGB, LED_ON, COLOR_RED, 0, 0);
@@ -155,9 +154,9 @@ static void handleMotorRamp(bool enable, uint8_t target_pwm, bool target_dir) {
 
 void motorEmergencyStop() {
   handleMotorRamp(0, 0, 0);
-#ifdef ARDUINO
+#ifdef ARDUINO_IDE
   Serial.println("电机急停");
-#elif defined(PIO)
+#else
   ESP_LOGI(TAG, "电机急停");
 #endif
 }
@@ -171,9 +170,9 @@ void modeIdentify(void* pvParameters) {
     // 每 1000 次循环或每 5 秒检查一次栈水位
     if (millis() - lastCheck > 5000) {
       UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
-#ifdef ARDUINO
+#ifdef ARDUINO_IDE
       Serial.printf("电机模式识别任务 Stack left: %d\n", stackHighWater);
-#elif defined(PIO)
+#else
       ESP_LOGI(TAG, "Stack left: %d", stackHighWater);
 #endif
       lastCheck = millis();
@@ -190,9 +189,9 @@ void modeIdentify(void* pvParameters) {
       }
     } else {
       current_ctrl_mode = STANDBY_MODE; // 如果断线，返回待机模式
-#ifdef ARDUINO
+#ifdef ARDUINO_IDE
       Serial.println("脚控不在线，返回待机模式");
-#elif defined(PIO)
+#else
       ESP_LOGW(TAG, "脚控不在线，返回待机模式");
 #endif
     }
@@ -207,9 +206,9 @@ void motorControl(void* pvParameters) {
     // 每 1000 次循环或每 5 秒检查一次栈水位
     if (millis() - lastCheck > 5000) {
       UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
-#ifdef ARDUINO
+#ifdef ARDUINO_IDE
       Serial.printf("电机控制任务 Stack left: %d\n", stackHighWater);
-#elif defined(PIO)
+#else
       ESP_LOGI(TAG, "Stack left: %d", stackHighWater);
 #endif
       lastCheck = millis();

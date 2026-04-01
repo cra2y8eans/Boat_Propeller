@@ -13,8 +13,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-#define ARDUINO
-// #define PIO
+#define ARDUINO_IDE
 
 portMUX_TYPE esp_now_Mux = portMUX_INITIALIZER_UNLOCKED;
 
@@ -45,18 +44,18 @@ void esp_now_setup() {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   if (esp_now_init() != ESP_OK) {
-#ifdef ARDUINO
+#ifdef ARDUINO_IDE
     Serial.println("ESP NOW 初始化失败");
-#elif defined(PIO)
+#else
     ESP_LOGE(TAG, "ESP NOW 初始化失败");
 #endif
     ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
     buzzer(3, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
     return;
   } else {
-#ifdef ARDUINO
+#ifdef ARDUINO_IDE
     Serial.println("ESP NOW 初始化成功");
-#elif defined(PIO)
+#else
     ESP_LOGI(TAG, "ESP NOW 初始化成功");
 #endif
   }
@@ -90,9 +89,9 @@ void esp_now_connection_check(void* pvParameters) {
     // 每 1000 次循环或每 5 秒检查一次栈水位
     if (millis() - lastCheck > 5000) {
       UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
-#ifdef ARDUINO
+#ifdef ARDUINO_IDE
       Serial.printf("ESP NOW 连接检查任务 Stack left: %d\n", stackHighWater);
-#elif defined(PIO)
+#else
       ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
 #endif
       lastCheck = millis();
@@ -130,9 +129,9 @@ void dataSent(void* pvParameters) {
   while (1) { // 每 1000 次循环或每 5 秒检查一次栈水位
     if (millis() - lastCheck > 5000) {
       UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
-#ifdef ARDUINO
+#ifdef ARDUINO_IDE
       Serial.printf("数据发送 Stack left: %d\n", stackHighWater);
-#elif defined(PIO)
+#else
       ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
 #endif
       lastCheck = millis();

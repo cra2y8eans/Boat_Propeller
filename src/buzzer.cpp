@@ -2,7 +2,7 @@
 #include "esp_log.h"
 #include <Arduino.h>
 
-#define ARDUINO
+#define ARDUINO_IDE
 // #define PIO
 
 static const char* TAG = "buzzer";
@@ -79,7 +79,7 @@ void buzzerUpdate(void* pvParameter) {
       UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
 #ifdef ARDUINO
       Serial.printf("蜂鸣器任务 Stack left: %d\n words", stackHighWater);
-#elif defined(PIO)
+#else
       ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
 #endif
       lastCheck = millis();

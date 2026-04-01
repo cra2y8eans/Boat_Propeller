@@ -2,8 +2,7 @@
 #include "esp_log.h"
 #include <Arduino.h>
 
-#define ARDUINO
-// #define PIO
+#define ARDUINO_IDE
 #define FILTER_WINDOW_SIZE 8
 #define LOW_PASS_ALPHA 0.3f
 #define ADC_WIDTH ADC_WIDTH_BIT_12
@@ -319,9 +318,9 @@ void NTC_task(void* pvParameters) {
     // 每 1000 次循环或每 5 秒检查一次栈水位
     if (millis() - lastCheck > 5000) {
       UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
-#ifdef ARDUINO
+#ifdef ARDUINO_IDE
       Serial.printf("NTC任务 Stack left: %d\n", stackHighWater);
-#elif defined(PIO)
+#else
       ESP_LOGI(TAG, "Stack left: %d", stackHighWater);
 #endif
       lastCheck = millis();
@@ -329,9 +328,9 @@ void NTC_task(void* pvParameters) {
     PCB_Temperature      = TemperatureReading(PCB_NTC_Filter, ntc_pcb_pin, res_table_pcb);
     High_Mos_Temperature = TemperatureReading(High_Mos_NTC_Filter, ntc_high_mos_pin, res_table_mos);
     Low_Mos_Temperature  = TemperatureReading(Low_Mos_NTC_Filter, ntc_low_mos_pin, res_table_mos);
-#ifdef ARDUINO
+#ifdef ARDUINO_IDE
     Serial.printf("PCB_Temperature: %.2f\n°C, High_Mos_Temperature: %.2f\n°C, Low_Mos_Temperature: %.2f\n°C", PCB_Temperature, High_Mos_Temperature, Low_Mos_Temperature);
-#elif defined(PIO)
+#else
     ESP_LOGI(TAG, "PCB_Temperature: %.2f\n°C, High_Mos_Temperature: %.2f\n°C, Low_Mos_Temperature: %.2f\n°C", PCB_Temperature, High_Mos_Temperature, Low_Mos_Temperature);
 #endif
     vTaskDelayUntil(&xLastWakeTime, xPeriod);

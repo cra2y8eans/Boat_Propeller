@@ -7,8 +7,7 @@
 #include "freertos/task.h"
 #include "motor.h"
 
-#define ARDUINO
-// #define PIO
+#define ARDUINO_IDE
 #define AUTO_DISABLE_DELAY 60000 // 超时休眠，单位毫秒
 
 static portMUX_TYPE  step_Mux          = portMUX_INITIALIZER_UNLOCKED; // 定义临界区变量
@@ -35,9 +34,9 @@ void stepperEmergencyStop() {
   digitalWrite(step_en, HIGH);
   digitalWrite(step_on, LOW);
   isSleeped = true;
-#ifdef ARDUINO
+#ifdef ARDUINO_IDE
   Serial.println("步进电机紧急停止");
-#elif defined(PIO)
+#else
   ESP_LOGW(TAG, "步进电机紧急停止");
 #endif
 }
@@ -54,9 +53,9 @@ void stepper_control_task(void* pvParameter) {
     // 每 1000 次循环或每 5 秒检查一次栈水位
     if (millis() - lastCheck > 5000) {
       UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
-#ifdef ARDUINO
+#ifdef ARDUINO_IDE
       Serial.printf("步进电机控制任务 Stack left: %d\n", stackHighWater);
-#elif defined(PIO)
+#else
       ESP_LOGI(TAG, "Stack left: %d", stackHighWater);
 #endif
       lastCheck = millis();
@@ -124,9 +123,9 @@ void stepper_control_task(void* pvParameter) {
       if (!isSleeped && (millis() - lastOperationTime > AUTO_DISABLE_DELAY)) {
         digitalWrite(step_en, HIGH);
         isSleeped = true;
-#ifdef ARDUINO
+#ifdef ARDUINO_IDE
         Serial.println("步进电机自动休眠");
-#elif defined(PIO)
+#else
         ESP_LOGI(TAG, "步进电机自动休眠");
 #endif
       }

@@ -6,8 +6,7 @@
 
 QueueHandle_t buttonQueue = NULL;
 
-#define ARDUINO
-// #define PIO
+#define ARDUINO_IDE
 #define LONG_PRESS_DEBOUNCE_MS 800
 
 static const char*   TAG                      = "button";
@@ -63,9 +62,9 @@ void buttonTask(void* pvParameters) {
     // 每 1000 次循环或每 5 秒检查一次栈水位
     if (millis() - lastCheck > 5000) {
       UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
-#ifdef ARDUINO
+#ifdef ARDUINO_IDE
       Serial.printf("按钮任务 Stack left: %d\n", stackHighWater);
-#elif defined(PIO)
+#else 
       ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
 #endif
       lastCheck = millis();

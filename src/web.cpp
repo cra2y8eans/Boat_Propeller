@@ -13,8 +13,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-#define ARDUINO
-// #define PIO
+#define ARDUINO_IDE
 
 static const char* TAG         = "web";
 static const char* ap_ssid     = "crazybeans";
@@ -55,7 +54,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         <div class="card">
             <h2>⚡ 功率 & 电压</h2>
             <div class="row">总线电压: <span id="vBus">0</span> mV</div>
-            <div class="row">脚踏电压: <span id="vPad">0</span> mV (<span id="vPadPct">0</span>%)</div>
+            <div class="row">脚控电压: <span id="vPad">0</span> mV (<span id="vPadPct">0</span>%)</div>
             <div class="row">电流: <span id="current">0</span> mA</div>
             <div class="row">功率: <span id="power">0</span> mW</div>
         </div>
@@ -65,7 +64,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             <div class="row">高侧MOS: <span id="tempH">0</span> °C</div>
             <div class="row">低侧MOS: <span id="tempL">0</span> °C</div>
             <div class="row">MCU: <span id="tempMCU">0</span> °C</div>
-            <div class="row">脚踏MCU: <span id="tempFoot">0</span> °C</div>
+            <div class="row">脚控MCU: <span id="tempFoot">0</span> °C</div>
         </div>
         <div class="card">
             <h2>⚠️ 故障状态</h2>
@@ -139,7 +138,7 @@ void handleData() {
 
   uint8_t stepperSpeed = getStepSpeed(); // 步进电机速度档位
 
-  // 读取脚踏板数据（使用与写入相同的互斥锁）
+  // 读取脚控板数据（使用与写入相同的互斥锁）
   float vPad_mv, vPad_percentage, temp_footPadMCU;
   taskENTER_CRITICAL(&esp_now_Mux); // 使用 ESPNOW.cpp 中定义的互斥锁
   vPad_mv         = FootPadData.batVoltage;
@@ -191,9 +190,9 @@ void startWeb() {
   server.on("/data", handleData);
   server.begin();
   webActive = true;
-#ifdef ARDUINO
+#ifdef ARDUINO_IDE
   Serial.println("Web server started");
-#elif defined(PIO)
+#else
   ESP_LOGI(TAG, "Web server started");
 #endif
 }
@@ -203,9 +202,9 @@ void stopWeb() {
   if (!webActive) return;
   server.stop();
   webActive = false;
-#ifdef ARDUINO
+#ifdef ARDUINO_IDE
   Serial.println("Web server stopped");
-#elif defined(PIO)
+#else
   ESP_LOGI(TAG, "Web server stopped");
 #endif
 }
@@ -217,9 +216,9 @@ void webTask(void* pvParameters) {
     // 每 1000 次循环或每 5 秒检查一次栈水位
     if (millis() - lastCheck > 5000) {
       UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
-#ifdef ARDUINO
+#ifdef ARDUINO_IDE
       Serial.printf("Web任务 Stack left: %d\n", stackHighWater);
-#elif defined(PIO)
+#else
       ESP_LOGI(TAG, "Stack left: %d", stackHighWater);
 #endif
       lastCheck = millis();

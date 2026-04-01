@@ -77,7 +77,7 @@ void buzzerUpdate(void* pvParameter) {
     // 每 1000 次循环或每 5 秒检查一次栈水位
     if (millis() - lastCheck > 5000) {
       UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
-#ifdef ARDUINO
+#ifdef ARDUINO_IDE
       Serial.printf("蜂鸣器任务 Stack left: %d\n words", stackHighWater);
 #else
       ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);

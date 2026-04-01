@@ -5,7 +5,7 @@
 #define ARDUINO_IDE
 #define MAX_BRIGHTNESS 255
 #define MIN_BRIGHTNESS 0
-#define STANDARD_BRIGHTNESS 10
+#define STANDARD_BRIGHTNESS 20
 
 static const char* TAG = "LED";
 

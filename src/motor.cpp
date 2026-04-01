@@ -16,24 +16,22 @@
 #define PWM_MIN_DUTY 50          // 最小档位对应的PWM值（1档）
 #define PWM_MAX_DUTY 255         // 最大档位对应的PWM值（5档/3档）
 
-static portMUX_TYPE    motor_mutex       = portMUX_INITIALIZER_UNLOCKED;
-static portMUX_TYPE    footpad_mutex     = portMUX_INITIALIZER_UNLOCKED; // 定义临界区变量
-static const char*     TAG               = "motor";                      // 日志标签
-static const uint8_t   on_foot_pin       = 1;                            // 模式引脚
-static const uint8_t   on_hand_pin       = 2;                            // 模式引脚
-static const uint8_t   motor_pin         = 9;                            // 电机引脚
-static const uint8_t   dir_pin           = 18;                           // 转向引脚
-static const uint8_t   motor_channel     = 4;                            // 电机PWM通道
-static const uint8_t   resolution        = 8;                            // 电机PWM精度
-static const uint16_t  frequency         = 15000;                        // 电机频率
-static int             target_speed      = 0;                            // 目标速度
-static int             current_speed     = 0;                            // 当前速度
-static bool            motor_move        = false;                        // 电机是否移动标志位
-static bool            current_dir       = false;                        // 当前方向标志位，代表当前电机旋转方向，用来跟之前的作比较
-static ControlMode     current_ctrl_mode = STANDBY_MODE;                 // 默认为待机模式
-static ControlMode     last_ctrl_mode    = STANDBY_MODE;                 // 默认为待机模式
-volatile static int8_t motor_speed       = 0;                            // 手动挡电机转速（范围-3~5）
-volatile uint8_t       stepSpeed         = 0;                            // 步进电机速度（范围1~5）
+static portMUX_TYPE   motor_mutex       = portMUX_INITIALIZER_UNLOCKED;
+static portMUX_TYPE   footpad_mutex     = portMUX_INITIALIZER_UNLOCKED; // 定义临界区变量
+static const char*    TAG               = "motor";                      // 日志标签
+static const uint8_t  on_foot_pin       = 1;                            // 模式引脚
+static const uint8_t  on_hand_pin       = 2;                            // 模式引脚
+static const uint8_t  motor_pin         = 9;                            // 电机引脚
+static const uint8_t  dir_pin           = 18;                           // 转向引脚
+static const uint8_t  motor_channel     = 4;                            // 电机PWM通道
+static const uint8_t  resolution        = 8;                            // 电机PWM精度
+static const uint16_t frequency         = 15000;                        // 电机频率
+static int            target_speed      = 0;                            // 目标速度
+static int            current_speed     = 0;                            // 当前速度
+static bool           motor_move        = false;                        // 电机是否移动标志位
+static bool           current_dir       = false;                        // 当前方向标志位，代表当前电机旋转方向，用来跟之前的作比较
+static ControlMode    current_ctrl_mode = STANDBY_MODE;                 // 默认为待机模式
+static ControlMode    last_ctrl_mode    = STANDBY_MODE;                 // 默认为待机模式
 
 TaskHandle_t modeHandle = NULL;
 
@@ -70,7 +68,6 @@ ControlMode readCurrentModeWithDebounce() {
 }
 
 void modeChangeOperation(ControlMode newMode) {
-  ButtonEvent_t buttonEvent;
   switch (newMode) {
   case HAND_MODE: // 手控模式。该模式下电推转速由按钮控制。步进电机不工作。
 #ifdef ARDUINO_IDE
@@ -115,10 +112,6 @@ void modeChangeOperation(ControlMode newMode) {
 
 ControlMode getCurrentCtrlMode() {
   return current_ctrl_mode;
-}
-
-uint8_t getStepSpeed() {
-  return stepSpeed;
 }
 
 // 缓启缓停与方向控制统一处理函数
@@ -245,7 +238,7 @@ void motorControl(void* pvParameters) {
       //    反转档位的绝对值同样映射到 PWM 50~255，但方向标志置为反转。
       //    映射方式：档位 1 对应 50，档位 5 对应 255；反转 -1 对应 50，-3 对应 255。
       // ------------------------------------------------------------
-      int8_t  local_speed = motor_speed;
+      int8_t  local_speed = getMotorSpeed();    // 获取当前手动档位速度
       bool    enable      = (local_speed != 0); // 非零档位才使能电机
       uint8_t target_pwm  = 0;
       bool    target_dir  = false; // false = 正转, true = 反转（与硬件引脚逻辑匹配）

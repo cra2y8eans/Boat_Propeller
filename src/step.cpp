@@ -72,8 +72,8 @@ void stepper_control_task(void* pvParameter) {
     bool        turnLeft   = FootPadData.data[0];
     bool        turnRight  = FootPadData.data[1];
     bool        dirReverse = isAccelButtonLongPressed; // 方向翻转标志
-    uint8_t     speedLevel = stepSpeed;                // 步进速度档位（1~5）
     taskEXIT_CRITICAL(&step_Mux);
+    uint8_t speedLevel = getStepSpeed(); // 步进速度档位（1~5）
     // 计算脉冲间隔（微秒）
     pulseInterval = speedToMicroseconds(speedLevel);
     // 判断是否需要工作（仅脚控/巡航模式且有转向命令）

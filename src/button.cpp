@@ -1,51 +1,90 @@
 #include "button.h"
 #include "buzzer.h"
 #include "esp_log.h"
+#include "motor.h"
 #include <Arduino.h>
 #include <OneButton.h>
-
-QueueHandle_t buttonQueue = NULL;
 
 #define ARDUINO_IDE
 #define LONG_PRESS_DEBOUNCE_MS 800
 
+portMUX_TYPE speedMutex = portMUX_INITIALIZER_UNLOCKED;
+
 static const char*   TAG                      = "button";
 static const uint8_t ACCEL_BUTTON_PIN         = 40;
 static const uint8_t DECEL_BUTTON_PIN         = 41;
+static uint8_t       stepSpeed                = 0;     // 当前步进电机转速
+static int8_t        motorSpeed               = 0;     // 当前电机速度，正数表示前进，负数表示后退
 volatile bool        isAccelButtonLongPressed = false; // 加速按钮长按标志位
 volatile bool        isDecelButtonLongPressed = false; // 减速按钮长按标志位
 
 static OneButton accelButton, decelButton;
 
-// 回调函数：使用局部结构体变量，避免共享
+uint8_t getStepSpeed() {
+  uint8_t local_speed;
+  taskENTER_CRITICAL(&speedMutex);
+  local_speed = stepSpeed;
+  taskEXIT_CRITICAL(&speedMutex);
+  return local_speed;
+}
+
+int8_t getMotorSpeed() {
+  int8_t local_speed;
+  taskENTER_CRITICAL(&speedMutex);
+  local_speed = motorSpeed;
+  taskEXIT_CRITICAL(&speedMutex);
+  return local_speed;
+}
+
 // 短按回调
 static void accelButtonShortPressed() { // 加速
-  ButtonEvent_t evt = { ACCEL_BUTTON, BUTTON_EVENT_SHORT_PRESS };
-  xQueueSend(buttonQueue, &evt, 0);
   buzzer(1, SHORT_BEEP_DURATION, 0);
+  ControlMode mode = getCurrentCtrlMode();
+  switch (mode) {
+  case HAND_MODE:
+    taskENTER_CRITICAL(&speedMutex);
+    motorSpeed = min(motorSpeed + 1, 5); // 增加档位，最大为5
+    taskEXIT_CRITICAL(&speedMutex);
+    break;
+  case FOOT_MODE:
+    taskENTER_CRITICAL(&speedMutex);
+    stepSpeed = min(stepSpeed + 1, 5); // 增加档位，最大为5
+    taskEXIT_CRITICAL(&speedMutex);
+    break;
+  default:
+    break;
+  }
 }
 static void decelButtonShortPressed() { // 减速
-  ButtonEvent_t evt = { DECEL_BUTTON, BUTTON_EVENT_SHORT_PRESS };
-  xQueueSend(buttonQueue, &evt, 0);
   buzzer(1, SHORT_BEEP_DURATION, 0);
+  ControlMode mode = getCurrentCtrlMode();
+  switch (mode) {
+  case HAND_MODE:
+    taskENTER_CRITICAL(&speedMutex);
+    stepSpeed = max(stepSpeed - 1, 1); // 减少档位，最小为1
+    taskEXIT_CRITICAL(&speedMutex);
+    break;
+  case FOOT_MODE:
+    taskENTER_CRITICAL(&speedMutex);
+    motorSpeed = max(motorSpeed - 1, -3); // 减少档位，最小为-3
+    taskEXIT_CRITICAL(&speedMutex);
+    break;
+  default:
+    break;
+  }
 }
 
 // 长按回调
 static void accelButtonLongPressed() { // 加速
   isAccelButtonLongPressed = !isAccelButtonLongPressed;
-  ButtonEvent_t evt        = { ACCEL_BUTTON, BUTTON_EVENT_LONG_PRESS };
-  // xQueueSend(buttonQueue, &evt, 0);
   buzzer(1, LONG_BEEP_DURATION, 0);
 }
 static void decelButtonLongPressed() { // 减速
   isDecelButtonLongPressed = !isDecelButtonLongPressed;
-  ButtonEvent_t evt        = { DECEL_BUTTON, BUTTON_EVENT_LONG_PRESS };
-  // xQueueSend(buttonQueue, &evt, 0);
   buzzer(1, LONG_BEEP_DURATION, 0);
 }
 
 void buttonInit() {
-  buttonQueue = xQueueCreate(10, sizeof(ButtonEvent_t));
   accelButton.setup(ACCEL_BUTTON_PIN, INPUT_PULLDOWN, false); // 按钮触发为高电平，参数须填false，反之为true（默认）
   decelButton.setup(DECEL_BUTTON_PIN, INPUT_PULLDOWN, false);
   accelButton.attachClick(accelButtonShortPressed);
@@ -64,7 +103,7 @@ void buttonTask(void* pvParameters) {
       UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
 #ifdef ARDUINO_IDE
       Serial.printf("按钮任务 Stack left: %d\n", stackHighWater);
-#else 
+#else
       ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
 #endif
       lastCheck = millis();

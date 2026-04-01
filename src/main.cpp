@@ -33,7 +33,7 @@ void setup() {
   xTaskCreatePinnedToCore(dataSent, "dataSent", 1024 * 4, NULL, 2, NULL, 0);
   xTaskCreatePinnedToCore(esp_now_connection_check, "esp_now_connection_check", 1024 * 4, NULL, 2, NULL, 0);
   xTaskCreatePinnedToCore(buttonTask, "ButtonTask", 1024 * 3, NULL, 1, NULL, 1);
-  xTaskCreatePinnedToCore(modeIdentify, "modeIdentify", 1024 * 3, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(modeIdentify, "modeIdentify", 1024 * 3, NULL, 1, &modeHandle, 1);
   xTaskCreatePinnedToCore(motorControl, "motorControl", 1024 * 4, NULL, 2, NULL, 1);
   // xTaskCreatePinnedToCore(NTC_task, "temperatureRead", 1024 * 2, NULL, 1, NULL, 1);
   xTaskCreatePinnedToCore(stepper_control_task, "stepper_control_task", 1024 * 4, NULL, 3, NULL, 1);

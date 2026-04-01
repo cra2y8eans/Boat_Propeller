@@ -76,12 +76,12 @@ static int updateFan(FanController& fc, float temp) {
 float getChipTemp(); // 例如使用 temperatureRead()
 
 float getFanChanSpeed() {
-  float percentage = duty_chan / 255;
+  float percentage = (float)duty_chan / 255;
   return percentage;
 }
 
 float getFanHeatSpeed() {
-  float percentage = duty_heat / 255;
+  float percentage = (float)duty_heat / 255;
   return percentage;
 }
 

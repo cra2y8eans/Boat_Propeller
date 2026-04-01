@@ -15,13 +15,7 @@
 extern volatile bool isAccelButtonLongPressed;
 extern volatile bool isDecelButtonLongPressed;
 
-// 事件结构体
-struct ButtonEvent_t {
-  uint8_t button; // ACCEL_BUTTON 或 DECEL_BUTTON
-  uint8_t event;  // 短按或长按
-};
-
-extern QueueHandle_t buttonQueue;
-
-void buttonInit();
-void buttonTask(void* pvParameters);
+void    buttonInit();
+int8_t  getMotorSpeed();
+uint8_t getStepSpeed();
+void    buttonTask(void* pvParameters);

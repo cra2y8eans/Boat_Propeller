@@ -6,7 +6,10 @@
 
 QueueHandle_t buttonQueue = NULL;
 
+#define ARDUINO
+// #define PIO
 #define LONG_PRESS_DEBOUNCE_MS 800
+
 static const char*   TAG                      = "button";
 static const uint8_t ACCEL_BUTTON_PIN         = 40;
 static const uint8_t DECEL_BUTTON_PIN         = 41;
@@ -44,8 +47,8 @@ static void decelButtonLongPressed() { // 减速
 
 void buttonInit() {
   buttonQueue = xQueueCreate(10, sizeof(ButtonEvent_t));
-  accelButton.setup(ACCEL_BUTTON_PIN, INPUT_PULLDOWN);
-  decelButton.setup(DECEL_BUTTON_PIN, INPUT_PULLDOWN);
+  accelButton.setup(ACCEL_BUTTON_PIN, INPUT_PULLDOWN, false); // 按钮触发为高电平，参数须填false，反之为true（默认）
+  decelButton.setup(DECEL_BUTTON_PIN, INPUT_PULLDOWN, false);
   accelButton.attachClick(accelButtonShortPressed);
   accelButton.attachLongPressStart(accelButtonLongPressed);
   decelButton.attachClick(decelButtonShortPressed);
@@ -60,7 +63,11 @@ void buttonTask(void* pvParameters) {
     // 每 1000 次循环或每 5 秒检查一次栈水位
     if (millis() - lastCheck > 5000) {
       UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
+#ifdef ARDUINO
+      Serial.printf("按钮任务 Stack left: %d\n", stackHighWater);
+#elif defined(PIO)
       ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
+#endif
       lastCheck = millis();
     }
     accelButton.tick();

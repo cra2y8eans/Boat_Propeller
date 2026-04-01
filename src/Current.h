@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ina226.h"
+#include "INA226.h"
 #include <Arduino.h>
 
 void  ina226_init();

@@ -5,6 +5,9 @@
 #include "motor.h"
 #include "step.h"
 
+#define ARDUINO
+// #define PIO
+
 static const char* TAG = "FAULT";
 
 /** DRV8701故障引脚 nFAULT
@@ -102,6 +105,10 @@ TaskHandle_t faultTaskHandle = NULL;
 void fault_init() {
   pinMode(H_BridgeFault_pin, INPUT); // 已外部上拉
   pinMode(chop_pin, INPUT);          // 已外部上拉
+}
+
+void fault_task(void* pvParameters) {
+  faultTaskHandle = xTaskGetCurrentTaskHandle();
   attachInterrupt(digitalPinToInterrupt(H_BridgeFault_pin), H_BridgeFault_ISR, CHANGE);
   attachInterrupt(digitalPinToInterrupt(chop_pin), chop_ISR, CHANGE);
 #ifdef TMC2209
@@ -111,16 +118,17 @@ void fault_init() {
   pinMode(drv8872_Fault_pin, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(drv8872_Fault_pin), drv8872_Fault_ISR, CHANGE);
 #endif
-}
-
-void fault_task(void* pvParameters) {
   uint32_t notifiedValue;
   uint32_t lastCheck = 0;
   while (1) {
     // 每 1000 次循环或每 5 秒检查一次栈水位
     if (millis() - lastCheck > 5000) {
       UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
+#ifdef ARDUINO
+      Serial.printf("故障任务 Stack left: %d\n", stackHighWater);
+#elif defined(PIO)
       ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
+#endif
       lastCheck = millis();
     }
     // 阻塞等待通知，收到后通知值存入 notifiedValue
@@ -130,35 +138,58 @@ void fault_task(void* pvParameters) {
     switch (notifiedValue) {
     case H_BRIDGE_FAULT:
       if (isH_BridgeFault) {
+#ifdef ARDUINO
+        Serial.println("DRV8701报错!");
+#elif defined(PIO)
         ESP_LOGI(TAG, "DRV8701报错!");
+#endif
         motorEmergencyStop(); // 立即停止电机
         buzzer(3, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
         ledSetMode(sysRGB, LED_BLINK, COLOR_RED, 200, 200);
       } else {
         // 故障已清除，恢复正常状态
+#ifdef ARDUINO
+        Serial.println("DRV8701故障已清除");
+#elif defined(PIO)
         ESP_LOGI(TAG, "DRV8701故障已清除");
+#endif
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
       }
       break;
     case SNSOUT_CHOPPING:
       if (isChopping) {
+#ifdef ARDUINO
+        Serial.println("正在斩波!");
+#elif defined(PIO)
         ESP_LOGE(TAG, "正在斩波!");
+#endif
         buzzer(3, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
         ledSetMode(sysRGB, LED_BLINK, COLOR_YELLOW, 200, 200);
       } else {
-        // 斩波已停止，恢复正常状态
+#ifdef ARDUINO
+        Serial.println("斩波已停止");
+#elif defined(PIO)
         ESP_LOGI(TAG, "斩波已停止");
+#endif
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
       }
       break;
     case TMC2209_FAULT:
       if (isStepperFault) {
+#ifdef ARDUINO
+        Serial.println("TMC2209报错!");
+#elif defined(PIO)
         ESP_LOGE(TAG, "TMC2209报错!");
+#endif
         stepperEmergencyStop();
         buzzer(3, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
         ledSetMode(sysRGB, LED_BLINK, COLOR_RED, 200, 200);
       } else {
+#ifdef ARDUINO
+        Serial.println("TMC2209故障已清除");
+#elif defined(PIO)
         ESP_LOGI(TAG, "TMC2209故障已清除");
+#endif
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
       }
       break;

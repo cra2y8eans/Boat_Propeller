@@ -17,7 +17,6 @@
 void setup() {
   Serial.begin(115200);
   vTaskDelay(pdMS_TO_TICKS(1000)); // 等待串口稳定
-
   ledInit();
   buzzerInit();
   esp_now_setup();

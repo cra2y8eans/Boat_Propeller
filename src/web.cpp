@@ -13,6 +13,9 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#define ARDUINO
+// #define PIO
+
 static const char* TAG         = "web";
 static const char* ap_ssid     = "crazybeans";
 static const char* ap_password = "12345678";
@@ -188,21 +191,40 @@ void startWeb() {
   server.on("/data", handleData);
   server.begin();
   webActive = true;
+#ifdef ARDUINO
+  Serial.println("Web server started");
+#elif defined(PIO)
   ESP_LOGI(TAG, "Web server started");
+#endif
 }
 
 // ---------- 停止 Web 服务 ----------
 void stopWeb() {
   if (!webActive) return;
   server.stop();
-  WiFi.softAPdisconnect(true);
   webActive = false;
+#ifdef ARDUINO
+  Serial.println("Web server stopped");
+#elif defined(PIO)
   ESP_LOGI(TAG, "Web server stopped");
+#endif
 }
 
 // ---------- FreeRTOS 任务 ----------
 void webTask(void* pvParameters) {
+  uint32_t lastCheck = 0;
   while (1) {
+    // 每 1000 次循环或每 5 秒检查一次栈水位
+    if (millis() - lastCheck > 5000) {
+      UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
+#ifdef ARDUINO
+      Serial.printf("Web任务 Stack left: %d\n", stackHighWater);
+#elif defined(PIO)
+      ESP_LOGI(TAG, "Stack left: %d", stackHighWater);
+#endif
+      lastCheck = millis();
+    }
+    
     if (isAccelButtonLongPressed) {
       if (!webActive) startWeb();
       server.handleClient();

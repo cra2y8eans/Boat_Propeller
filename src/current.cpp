@@ -4,6 +4,8 @@
 #include <Arduino.h>
 #include <Wire.h>
 
+#define ARDUINO
+// #define PIO
 #define INA226_INIT_SUCCESS 0
 #define INA226_INIT_FAIL 1
 #define INA226_CALIBRATION_FAIL 2
@@ -71,30 +73,60 @@ INA226 ina(0x40); // 模块地址为0x45
 void ina226_init() {
   Wire.begin(sda_pin, scl_pin);
   if (!ina.begin()) {
+#ifdef ARDUINO
+    Serial.println("INA226初始化失败");
+#elif defined(PIO)
     ESP_LOGE(TAG, "初始化失败");
+#endif
     return;
   } else {
+#ifdef ARDUINO
+    Serial.println("INA226初始化成功");
+#elif defined(PIO)
     ESP_LOGI(TAG, "初始化成功");
+#endif
+
     ina.setMode();
     ina.setAverage(INA226_64_SAMPLES);                 // 启用64次采样平均，以获得更稳定的读数
     ina.setBusVoltageConversionTime(INA226_8300_us);   // 设置最长转换时间以获得最高精度
     ina.setShuntVoltageConversionTime(INA226_8300_us); // 设置最长转换时间以获得最高精度
     uint16_t res = ina.setMaxCurrentShunt(maxCurrent, H_BridgeShunt);
     if (res == INA226_ERR_NONE) {
+#ifdef ARDUINO
+      Serial.println("INA226校准成功");
+#elif defined(PIO)
       ESP_LOGI(TAG, "校准成功");
+#endif
       return;
     } else {
       switch (res) {
       case INA226_ERR_SHUNTVOLTAGE_HIGH:
+#ifdef ARDUINO
+        Serial.println("校准失败：检测电阻过大或最大电流过高，导致电压超过81.90 mV");
+#elif defined(PIO)
         ESP_LOGE(TAG, "校准失败：检测电阻过大或最大电流过高，导致电压超过81.90 mV");
+#endif
         break;
       case INA226_ERR_MAXCURRENT_LOW:
+#ifdef ARDUINO
+        Serial.println("校准失败：最大电流过小，必须大于0.001 A");
+#elif defined(PIO)
         ESP_LOGE(TAG, "校准失败：最大电流过小，必须大于0.001 A");
+#endif
         break;
       case INA226_ERR_SHUNT_LOW:
+#ifdef ARDUINO
+        Serial.println("校准失败：检测电阻过小，必须大于0.01 Ω");
+#elif defined(PIO)
         ESP_LOGE(TAG, "校准失败：检测电阻过小，必须大于0.01 Ω");
+#endif
         break;
       default:
+#ifdef ARDUINO
+        Serial.println("校准失败：未知错误");
+#elif defined(PIO)
+        ESP_LOGE(TAG, "校准失败：未知错误");
+#endif
         break;
       }
       return;
@@ -110,17 +142,28 @@ void ina226_task(void* pvParameters) {
     // 每 1000 次循环或每 5 秒检查一次栈水位
     if (millis() - lastCheck > 5000) {
       UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
+#ifdef ARDUINO
+      Serial.printf("INA226 Stack left: %d words", stackHighWater);
+#elif defined(PIO)
       ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
+#endif
       lastCheck = millis();
     }
     busVoltage      = ina.getBusVoltage();
     shuntVoltage    = ina.getShuntVoltage_mV();
     H_BridgeCurrent = ina.getCurrent();
     power           = ina.getPower();
-    ESP_LOGI(TAG, "busVoltage: %.3f V\n", busVoltage);
-    ESP_LOGI(TAG, "Shunt Voltage: %.3f mV\n", shuntVoltage);
+#ifdef ARDUINO
+    Serial.printf("busVoltage: %.3f V\n", busVoltage);
+    Serial.printf("Shunt Voltage: %.3f mV\n", shuntVoltage);
+    Serial.printf("Current: %.3f A\n", H_BridgeCurrent);
+    Serial.printf("Power: %.3f W\n", power);
+#elif defined(PIO)
+    ESP_LOGI(TAG, "busVoltage: %.3f V", busVoltage);
+    ESP_LOGI(TAG, "Shunt Voltage: %.3f mV", shuntVoltage);
     ESP_LOGI(TAG, "Current: %.3f A\n", H_BridgeCurrent);
     ESP_LOGI(TAG, "Power: %.3f W\n", power);
+#endif
     vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }
 }

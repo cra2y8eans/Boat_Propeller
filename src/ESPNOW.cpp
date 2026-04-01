@@ -13,13 +13,16 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-portMUX_TYPE  esp_now_Mux = portMUX_INITIALIZER_UNLOCKED;
+#define ARDUINO
+// #define PIO
+
+portMUX_TYPE esp_now_Mux = portMUX_INITIALIZER_UNLOCKED;
 
 esp_now_peer_info_t BoatPropeller;
 
 static const char*            TAG               = "ESPNOW";
 static const uint16_t         RECV_TIMEOUT      = 500;
-static const uint8_t          FootPadMacAddr[6] = { 0x08, 0xa6, 0xf7, 0x1b, 0xb2, 0xcc }; // footpad ???
+static const uint8_t          FootPadMacAddr[6] = { 0x08, 0xa6, 0xf7, 0x1b, 0xb2, 0xcc }; // footpad ???  08:a6:f7:1b:b2:cc
 static volatile unsigned long lastRecvFromPad   = 0;
 volatile bool                 isFootPadOnline   = false;
 
@@ -42,12 +45,20 @@ void esp_now_setup() {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   if (esp_now_init() != ESP_OK) {
+#ifdef ARDUINO
+    Serial.println("ESP NOW 初始化失败");
+#elif defined(PIO)
     ESP_LOGE(TAG, "ESP NOW 初始化失败");
+#endif
     ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
     buzzer(3, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
     return;
   } else {
+#ifdef ARDUINO
+    Serial.println("ESP NOW 初始化成功");
+#elif defined(PIO)
     ESP_LOGI(TAG, "ESP NOW 初始化成功");
+#endif
   }
   esp_now_register_send_cb(OnDataSent);
   esp_now_register_recv_cb(OnDataRecv);
@@ -79,7 +90,11 @@ void esp_now_connection_check(void* pvParameters) {
     // 每 1000 次循环或每 5 秒检查一次栈水位
     if (millis() - lastCheck > 5000) {
       UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
+#ifdef ARDUINO
+      Serial.printf("ESP NOW 连接检查任务 Stack left: %d\n", stackHighWater);
+#elif defined(PIO)
       ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
+#endif
       lastCheck = millis();
     }
 
@@ -115,7 +130,11 @@ void dataSent(void* pvParameters) {
   while (1) { // 每 1000 次循环或每 5 秒检查一次栈水位
     if (millis() - lastCheck > 5000) {
       UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
+#ifdef ARDUINO
+      Serial.printf("数据发送 Stack left: %d\n", stackHighWater);
+#elif defined(PIO)
       ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
+#endif
       lastCheck = millis();
     }
 

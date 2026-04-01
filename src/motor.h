@@ -9,7 +9,7 @@ enum ControlMode {
   STANDBY_MODE, // 待机模式
 };
 
-extern TaskHandle_t modeHandle; // 模式识别任务句柄,用于ISR通知
+extern TaskHandle_t modeHandle;
 
 void        motorInit();
 void        modeIdentify(void* pvParameters);

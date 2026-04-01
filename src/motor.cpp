@@ -44,9 +44,9 @@ void IRAM_ATTR modeChange_ISR() {
 ControlMode readModeWhenSystemStart() {
   int readHand_1 = digitalRead(on_hand_pin);
   int readFoot_1 = digitalRead(on_foot_pin);
-  if (readHand_1 == LOW && readFoot_1 == HIGH) return HAND_MODE;    // 手控模式
-  if (readHand_1 == HIGH && readFoot_1 == LOW) return FOOT_MODE;    // 脚控模式
-  if (readHand_1 == HIGH && readFoot_1 == HIGH) return CRUISE_MODE; // 巡航模式
+  if (readHand_1 == LOW && readFoot_1 == HIGH) return HAND_MODE;   // 手控模式
+  if (readHand_1 == LOW && readFoot_1 == LOW) return FOOT_MODE;    // 脚控模式
+  if (readHand_1 == HIGH && readFoot_1 == LOW) return CRUISE_MODE; // 巡航模式
 
   return HAND_MODE; // 默认返回手动模式
 }
@@ -181,11 +181,12 @@ void modeIdentify(void* pvParameters) {
         modeChangeOperation(current_ctrl_mode);
       }
     } else {
-      current_ctrl_mode = STANDBY_MODE; // 如果断线，返回待机模式
+      current_ctrl_mode = HAND_MODE; // 如果断线，返回手动模式
+      modeChangeOperation(current_ctrl_mode);
 #ifdef ARDUINO_IDE
-      Serial.println("脚控不在线，返回待机模式");
+      Serial.println("脚控不在线，返回手动模式");
 #else
-      ESP_LOGW(TAG, "脚控不在线，返回待机模式");
+      ESP_LOGW(TAG, "脚控不在线，返回手动模式");
 #endif
     }
   }
@@ -275,5 +276,6 @@ void motorInit() {
   pinMode(on_foot_pin, INPUT_PULLDOWN);            // 设置脚控模式引脚为输入下拉模式
   digitalWrite(dir_pin, LOW);                      // 设置引脚为默认方向（正转）
   current_dir    = false;                          // 与引脚状态一致
-  last_ctrl_mode = readModeWhenSystemStart();
+  last_ctrl_mode = STANDBY_MODE;
+  modeChangeOperation(last_ctrl_mode);
 }

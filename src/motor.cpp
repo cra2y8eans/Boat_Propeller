@@ -114,6 +114,14 @@ ControlMode getCurrentCtrlMode() {
   return current_ctrl_mode;
 }
 
+uint8_t getMotorCurrentSpeed() {
+  uint8_t speed;
+  taskENTER_CRITICAL(&motor_mutex);
+  speed = current_speed;
+  taskEXIT_CRITICAL(&motor_mutex);
+  return speed;
+}
+
 // 缓启缓停与方向控制统一处理函数
 static void handleMotorRamp(bool enable, uint8_t target_pwm, bool target_dir) {
   taskENTER_CRITICAL(&motor_mutex);

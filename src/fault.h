@@ -8,7 +8,7 @@ extern volatile bool isH_BridgeFault, isChopping;
 
 #ifdef TMC2209
 extern volatile bool isStepperFault;
-#elif defined (DRV8872)
+#elif defined(DRV8872)
 extern volatile bool isDrv8872Fault;
 #endif
 

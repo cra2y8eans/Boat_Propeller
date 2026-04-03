@@ -7,8 +7,8 @@
 #include "esp_log.h"
 #include "fan.h"
 #include "fault.h"
-#include "led.h"
 #include "motor.h"
+#include "led.h"
 #include <WebServer.h>
 #include <WiFi.h>
 #include <freertos/FreeRTOS.h>
@@ -16,13 +16,13 @@
 
 #define ARDUINO_IDE
 
-static const char* TAG         = "web";
-static const char* ap_ssid     = "crazybeans";
+static const char* TAG = "web";
+static const char* ap_ssid = "crazybeans";
 static const char* ap_password = "12345678";
-static const int   ap_channel  = 1;
-static bool        webActive   = false;
+static const int ap_channel = 1;
+static bool webActive = false;
 
-static int ledBrightness = 20; // 全局LED亮度（0-255）
+static int ledBrightness = 20;  // 全局LED亮度（0-255）
 
 WebServer server(80);
 
@@ -30,21 +30,18 @@ WebServer server(80);
 void setLedBrightness(int brightness) {
   ledBrightness = constrain(brightness, 0, 255);
   sysRGB.setBrightness(ledBrightness);
-  sysRGB.show();
+  modeRGB.setBrightness(ledBrightness);
+  sysRGB.show();   // 实际上两个LED需要分别调用show()
+  modeRGB.show();
 }
 
 const char* getModeName(ControlMode mode) {
   switch (mode) {
-  case HAND_MODE:
-    return "手动模式";
-  case FOOT_MODE:
-    return "脚控模式";
-  case CRUISE_MODE:
-    return "巡航模式";
-  case STANDBY_MODE:
-    return "待机模式";
-  default:
-    return "未知";
+    case HAND_MODE: return "手动模式";
+    case FOOT_MODE: return "脚控模式";
+    case CRUISE_MODE: return "巡航模式";
+    case STANDBY_MODE: return "待机模式";
+    default: return "未知";
   }
 }
 
@@ -176,13 +173,13 @@ void handleRoot() {
 
 void handleData() {
   // 获取传感器数据
-  float vBus_MV      = getBusVoltageMV();
-  float current_MA   = getCurrentMA();
-  float power_MW     = getPowerMW();
-  float temp_PCB     = getPCBtemp();
-  float temp_h_mos   = getHighMosTemp();
-  float temp_l_mos   = getLowMosTemp();
-  float temp_MCU     = getChipTemp();
+  float vBus_MV = getBusVoltageMV();
+  float current_MA = getCurrentMA();
+  float power_MW = getPowerMW();
+  float temp_PCB = getPCBtemp();
+  float temp_h_mos = getHighMosTemp();
+  float temp_l_mos = getLowMosTemp();
+  float temp_MCU = getChipTemp();
   float fanChanSpeed = getFanChanSpeed();
   float fanHeatSpeed = getFanHeatSpeed();
 
@@ -191,14 +188,14 @@ void handleData() {
   // 脚踏板数据（使用互斥锁）
   float vPad_mv, vPad_percentage, temp_footPadMCU;
   taskENTER_CRITICAL(&esp_now_Mux);
-  vPad_mv         = FootPadData.batVoltage;
+  vPad_mv = FootPadData.batVoltage;
   vPad_percentage = FootPadData.batPercentage;
   temp_footPadMCU = FootPadData.footPadChipTemp;
   taskEXIT_CRITICAL(&esp_now_Mux);
 
   // 故障标志
   bool isH_BridgeFault_val = isH_BridgeFault;
-  bool isChopping_val      = isChopping;
+  bool isChopping_val = isChopping;
 #ifdef TMC2209
   bool isStepperFault_val = isStepperFault;
   bool isDrv8872Fault_val = false;
@@ -208,25 +205,23 @@ void handleData() {
 #endif
 
   // 控制状态
-  ControlMode mode     = getCurrentCtrlMode();
-  String      modeName = getModeName(mode);
-  String      motorSpeedStr;
+  ControlMode mode = getCurrentCtrlMode();
+  String modeName = getModeName(mode);
+  String motorSpeedStr;
 
   if (mode == HAND_MODE) {
     int8_t motorSpeed = getMotorSpeed();
-    if (motorSpeed == 0)
-      motorSpeedStr = "0 (停止)";
-    else
-      motorSpeedStr = String(motorSpeed);
+    if (motorSpeed == 0) motorSpeedStr = "0 (停止)";
+    else motorSpeedStr = String(motorSpeed);
   } else if (mode == FOOT_MODE || mode == CRUISE_MODE) {
-    uint8_t duty    = getMotorCurrentSpeed();
-    int     percent = duty * 100 / 255;
-    motorSpeedStr   = String(percent) + "% (" + String(duty) + "/255)";
+    uint8_t duty = getMotorCurrentSpeed();  // 获取当前 PWM 占空比
+    int percent = duty * 100 / 255;
+    motorSpeedStr = String(percent) + "% (" + String(duty) + "/255)";
   } else {
     motorSpeedStr = "停止";
   }
 
-  // 构建JSON
+  // 构建 JSON
   String json = "{";
   json += "\"vBus_MV\":" + String(vBus_MV) + ",";
   json += "\"vPad_mv\":" + String(vPad_mv) + ",";
@@ -248,8 +243,8 @@ void handleData() {
   json += "\"ctrlMode\":\"" + modeName + "\",";
   json += "\"motorSpeed\":\"" + motorSpeedStr + "\",";
   json += "\"ledBrightness\":" + String(ledBrightness);
-  json += "\"motorSpeed\":\"" + motorSpeedStr + "\",";
   json += "}";
+
   server.send(200, "application/json", json);
 }
 
@@ -304,5 +299,8 @@ void webTask(void* pvParameters) {
       stopWeb();
       vTaskDelay(pdMS_TO_TICKS(100));
     }
+    // startWeb();
+    // server.handleClient();
+    // vTaskDelay(pdMS_TO_TICKS(10));
   }
 }

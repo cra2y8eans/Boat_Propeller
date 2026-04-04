@@ -4,7 +4,6 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-#define ARDUINO_IDE
 #define INA226_INIT_SUCCESS 0
 #define INA226_INIT_FAIL 1
 #define INA226_CALIBRATION_FAIL 2
@@ -13,7 +12,7 @@ static const char* TAG = "INA226";
 
 static const uint8_t sda_pin       = 13;
 static const uint8_t scl_pin       = 12;
-static const float   maxCurrent    = 10.0;  // 最大电流，单位安培
+static const float   maxCurrent    = 65.0;  // 最大电流，单位安培
 static const float   H_BridgeShunt = 0.001; // 检测电阻，单位欧
 
 static volatile float busVoltage = 0.00, // 总线电压，单位伏特
@@ -71,64 +70,23 @@ INA226 ina(0x40); // 模块地址为0x45
 
 void ina226_init() {
   Wire.begin(sda_pin, scl_pin);
+  vTaskDelay(pdMS_TO_TICKS(500)); // 等待I2C总线稳定
   if (!ina.begin()) {
-#ifdef ARDUINO_IDE
-    Serial.println("INA226初始化失败");
-#else
     ESP_LOGE(TAG, "初始化失败");
-#endif
-    return;
+    while (1) {
+      ESP_LOGE(TAG, ".");
+      vTaskDelay(pdMS_TO_TICKS(1000)); // 每2秒打印一次错误信息
+    }
+    // return;
   } else {
-#ifdef ARDUINO_IDE
-    Serial.println("INA226初始化成功");
-#else
     ESP_LOGI(TAG, "初始化成功");
-#endif
-
     ina.setMode();
     ina.setAverage(INA226_64_SAMPLES);                 // 启用64次采样平均，以获得更稳定的读数
     ina.setBusVoltageConversionTime(INA226_8300_us);   // 设置最长转换时间以获得最高精度
     ina.setShuntVoltageConversionTime(INA226_8300_us); // 设置最长转换时间以获得最高精度
     uint16_t res = ina.setMaxCurrentShunt(maxCurrent, H_BridgeShunt);
     if (res == INA226_ERR_NONE) {
-#ifdef ARDUINO_IDE
-      Serial.println("INA226校准成功");
-#else
       ESP_LOGI(TAG, "校准成功");
-#endif
-      return;
-    } else {
-      switch (res) {
-      case INA226_ERR_SHUNTVOLTAGE_HIGH:
-#ifdef ARDUINO_IDE
-        Serial.println("校准失败：检测电阻过大或最大电流过高，导致电压超过81.90 mV");
-#else
-        ESP_LOGE(TAG, "校准失败：检测电阻过大或最大电流过高，导致电压超过81.90 mV");
-#endif
-        break;
-      case INA226_ERR_MAXCURRENT_LOW:
-#ifdef ARDUINO_IDE
-        ESP_LOGE(TAG, "校准失败：检测电阻过大或最大电流过高，导致电压超过81.90 mV");
-#else
-        ESP_LOGE(TAG, "校准失败：最大电流过小，必须大于0.001 A");
-#endif
-        break;
-      case INA226_ERR_SHUNT_LOW:
-#ifdef ARDUINO_IDE
-        Serial.println("校准失败：检测电阻过小，必须大于0.01 Ω");
-#else
-        ESP_LOGE(TAG, "校准失败：检测电阻过小，必须大于0.01 Ω");
-#endif
-        break;
-      default:
-#ifdef ARDUINO_IDE
-        Serial.println("校准失败：未知错误");
-#else
-        ESP_LOGE(TAG, "校准失败：未知错误");
-#endif
-        break;
-      }
-      return;
     }
   }
 }
@@ -136,33 +94,15 @@ void ina226_init() {
 void ina226_task(void* pvParameters) {
   TickType_t       xLastWakeTime = xTaskGetTickCount();
   const TickType_t xPeriod       = pdMS_TO_TICKS(500); // 延时 500ms，频率 = 1000 / 500 = 2 Hz，即每秒执行 2 次。
-  uint32_t         lastCheck     = 0;
   while (1) {
-    // 每 1000 次循环或每 5 秒检查一次栈水位
-    if (millis() - lastCheck > 5000) {
-      UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
-#ifdef ARDUINO_IDE
-      Serial.printf("INA226 Stack left: %d words", stackHighWater);
-#else
-      ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
-#endif
-      lastCheck = millis();
-    }
     busVoltage      = ina.getBusVoltage();
     shuntVoltage    = ina.getShuntVoltage_mV();
     H_BridgeCurrent = ina.getCurrent();
     power           = ina.getPower();
-#ifdef ARDUINO_IDE
-    Serial.printf("busVoltage: %.3f V\n", busVoltage);
-    Serial.printf("Shunt Voltage: %.3f mV\n", shuntVoltage);
-    Serial.printf("Current: %.3f A\n", H_BridgeCurrent);
-    Serial.printf("Power: %.3f W\n", power);
-#else
     ESP_LOGI(TAG, "busVoltage: %.3f V", busVoltage);
     ESP_LOGI(TAG, "Shunt Voltage: %.3f mV", shuntVoltage);
     ESP_LOGI(TAG, "Current: %.3f A\n", H_BridgeCurrent);
     ESP_LOGI(TAG, "Power: %.3f W\n", power);
-#endif
     vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }
 }

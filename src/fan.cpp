@@ -4,8 +4,6 @@
 #include "esp_log.h"
 #include "led.h"
 
-#define ARDUINO_IDE
-
 static const char* TAG = "FAN";
 
 static const uint8_t fan_out_pin  = 36;
@@ -86,20 +84,9 @@ float getFanHeatSpeed() {
 }
 
 void Fan_task(void* pvParameters) {
-  static FanController heatFan   = { HEAT_START, HEAT_FULL, HYSTERESIS, false };
-  static FanController chanFan   = { CHANNEL_START, CHANNEL_FULL, HYSTERESIS, false };
-  uint32_t             lastCheck = 0;
+  static FanController heatFan = { HEAT_START, HEAT_FULL, HYSTERESIS, false };
+  static FanController chanFan = { CHANNEL_START, CHANNEL_FULL, HYSTERESIS, false };
   while (1) {
-    // 每 1000 次循环或每 5 秒检查一次栈水位
-    if (millis() - lastCheck > 5000) {
-      UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
-#ifdef ARDUINO_IDE
-      Serial.printf("风扇任务 Stack left: %d\n", stackHighWater);
-#else
-      ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
-#endif
-      lastCheck = millis();
-    }
     // 读取所有温度
     float pcb_temp     = getPCBtemp();
     float highMos_temp = getHighMosTemp();
@@ -121,13 +108,8 @@ void Fan_task(void* pvParameters) {
     if (all_max >= ALARM_TEMP) {
       buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
       ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
-#ifdef ARDUINO_IDE
-      Serial.printf("设备过热，请检查 (%.1f°C)\n", all_max);
-#else
       ESP_LOGE(TAG, "设备过热，请检查 (%.1f°C)", all_max);
-#endif
     }
-
     vTaskDelay(pdMS_TO_TICKS(1000));
   }
 }

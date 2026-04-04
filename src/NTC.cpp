@@ -2,7 +2,6 @@
 #include "esp_log.h"
 #include <Arduino.h>
 
-#define ARDUINO_IDE
 #define FILTER_WINDOW_SIZE 8
 #define LOW_PASS_ALPHA 0.3f
 #define ADC_WIDTH ADC_WIDTH_BIT_12
@@ -313,26 +312,11 @@ float TemperatureReading(Filters::LowPass& filter, uint8_t pin, const float* tab
 void NTC_task(void* pvParameters) {
   TickType_t       xLastWakeTime = xTaskGetTickCount();
   const TickType_t xPeriod       = pdMS_TO_TICKS(1000); // 延时 1000ms，频率 = 1000 / 1000 = 1 Hz，即每秒执行 1 次。
-  uint32_t         lastCheck     = 0;
   while (1) {
-    // 每 1000 次循环或每 5 秒检查一次栈水位
-    if (millis() - lastCheck > 5000) {
-      UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
-#ifdef ARDUINO_IDE
-      Serial.printf("NTC任务 Stack left: %d\n", stackHighWater);
-#else
-      ESP_LOGI(TAG, "Stack left: %d", stackHighWater);
-#endif
-      lastCheck = millis();
-    }
     PCB_Temperature      = TemperatureReading(PCB_NTC_Filter, ntc_pcb_pin, res_table_pcb);
     High_Mos_Temperature = TemperatureReading(High_Mos_NTC_Filter, ntc_high_mos_pin, res_table_mos);
     Low_Mos_Temperature  = TemperatureReading(Low_Mos_NTC_Filter, ntc_low_mos_pin, res_table_mos);
-#ifdef ARDUINO_IDE
-    Serial.printf("PCB_Temperature: %.2f\n°C, High_Mos_Temperature: %.2f\n°C, Low_Mos_Temperature: %.2f\n°C", PCB_Temperature, High_Mos_Temperature, Low_Mos_Temperature);
-#else
     ESP_LOGI(TAG, "PCB_Temperature: %.2f\n°C, High_Mos_Temperature: %.2f\n°C, Low_Mos_Temperature: %.2f\n°C", PCB_Temperature, High_Mos_Temperature, Low_Mos_Temperature);
-#endif
     vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }
 }

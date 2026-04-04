@@ -7,7 +7,6 @@
 #include "freertos/task.h"
 #include "motor.h"
 
-#define ARDUINO_IDE
 #define AUTO_DISABLE_DELAY 60000 // 超时休眠，单位毫秒
 
 static portMUX_TYPE  step_Mux          = portMUX_INITIALIZER_UNLOCKED; // 定义临界区变量
@@ -27,18 +26,13 @@ void stepper_init() {
 
 // 将速度等级转换为微秒数
 static uint16_t speedToMicroseconds(uint8_t level) {
-  return 1000 + (level - 1) * 750;
+  return 3000 - (level - 1) * 700; // 1档3000us，5档1000us，线性递减
 }
-
 void stepperEmergencyStop() {
   digitalWrite(step_en, HIGH);
   digitalWrite(step_on, LOW);
   isSleeped = true;
-#ifdef ARDUINO_IDE
-  Serial.println("步进电机紧急停止");
-#else
   ESP_LOGW(TAG, "步进电机紧急停止");
-#endif
 }
 
 void stepper_control_task(void* pvParameter) {
@@ -48,18 +42,7 @@ void stepper_control_task(void* pvParameter) {
   uint32_t         pulseInterval  = 2000;  // 默认脉冲间隔（微秒）
   TickType_t       xLastWakeTime  = xTaskGetTickCount();
   const TickType_t xPeriod        = pdMS_TO_TICKS(1); // 单位ms，换算为频率： 1000Hz → 周期为 1000次/秒
-  uint32_t         lastCheck      = 0;
   while (1) {
-    // 每 1000 次循环或每 5 秒检查一次栈水位
-    if (millis() - lastCheck > 5000) {
-      UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
-#ifdef ARDUINO_IDE
-      Serial.printf("步进电机控制任务 Stack left: %d\n", stackHighWater);
-#else
-      ESP_LOGI(TAG, "Stack left: %d", stackHighWater);
-#endif
-      lastCheck = millis();
-    }
     // 如果步进电机故障，则等待1秒后重试
     if (isStepperFault) {
       vTaskDelayUntil(&xLastWakeTime, xPeriod);
@@ -123,11 +106,7 @@ void stepper_control_task(void* pvParameter) {
       if (!isSleeped && (millis() - lastOperationTime > AUTO_DISABLE_DELAY)) {
         digitalWrite(step_en, HIGH);
         isSleeped = true;
-#ifdef ARDUINO_IDE
-        Serial.println("步进电机自动休眠");
-#else
         ESP_LOGI(TAG, "步进电机自动休眠");
-#endif
       }
     }
     // 任务延时1ms，让出CPU（使用宏确保可移植）

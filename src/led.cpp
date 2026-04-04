@@ -2,7 +2,6 @@
 #include <Adafruit_NeoPixel.h>
 #include <Arduino.h>
 
-#define ARDUINO_IDE
 #define MAX_BRIGHTNESS 255
 #define MIN_BRIGHTNESS 0
 #define STANDARD_BRIGHTNESS 20
@@ -92,19 +91,7 @@ void ledSetMode(Adafruit_NeoPixel& myRGB, enum LEDMode mode, uint32_t color, uin
  * @brief LED状态机更新函数（非阻塞）
  */
 void ledUpdate(void* pvParameter) {
-  uint32_t lastCheck = 0;
   while (1) {
-    // 每 1000 次循环或每 5 秒检查一次栈水位
-    if (millis() - lastCheck > 5000) {
-      UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
-#ifdef ARDUINO_IDE
-      Serial.printf("led更新任务 Stack left: %d\n", stackHighWater);
-#else
-      ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
-#endif
-      lastCheck = millis();
-    }
-
     // 更新系统LED
     LedController* sysCtrl        = &sysLedCtrl;
     uint32_t       sysElapsedTime = millis() - sysCtrl->stateStartTime;

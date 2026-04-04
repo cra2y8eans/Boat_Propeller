@@ -2,9 +2,6 @@
 #include "esp_log.h"
 #include <Arduino.h>
 
-#define ARDUINO_IDE
-// #define PIO
-
 static const char* TAG = "buzzer";
 // ===== 硬件配置 =====
 static uint8_t buzzerPin = 39;
@@ -72,19 +69,7 @@ void buzzer(uint8_t times, uint16_t duration, uint16_t interval) {
  * @details 必须在FreeRTOS任务中持续调用
  */
 void buzzerUpdate(void* pvParameter) {
-  uint32_t lastCheck = 0;
   while (1) {
-    // 每 1000 次循环或每 5 秒检查一次栈水位
-    if (millis() - lastCheck > 5000) {
-      UBaseType_t stackHighWater = uxTaskGetStackHighWaterMark(NULL);
-#ifdef ARDUINO_IDE
-      Serial.printf("蜂鸣器任务 Stack left: %d\n words", stackHighWater);
-#else
-      ESP_LOGI(TAG, "Stack left: %d words", stackHighWater);
-#endif
-      lastCheck = millis();
-    }
-
     if (buzzerState == BUZZER_IDLE) {
       vTaskDelay(pdMS_TO_TICKS(10));
       continue;

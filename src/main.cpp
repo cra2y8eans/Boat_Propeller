@@ -23,10 +23,11 @@ void setup() {
   buttonInit();
   stepper_init();
   motorInit();
-  // ina226_init();
-  // NTC_Init();
-  // Fan_Init();
-  // fault_init();
+  ina226_init();
+  NTC_Init();
+  Fan_Init();
+  fault_init();
+  // pinMode(48, INPUT_PULLDOWN);
 
   xTaskCreatePinnedToCore(ledUpdate, "ledUpdate", 1024 * 3, NULL, 1, NULL, 1);
   xTaskCreatePinnedToCore(buzzerUpdate, "buzzerUpdate", 1024 * 3, NULL, 1, NULL, 1);
@@ -35,14 +36,19 @@ void setup() {
   xTaskCreatePinnedToCore(buttonTask, "ButtonTask", 1024 * 3, NULL, 1, NULL, 1);
   xTaskCreatePinnedToCore(modeIdentify, "modeIdentify", 1024 * 3, NULL, 1, &modeHandle, 1);
   xTaskCreatePinnedToCore(motorControl, "motorControl", 1024 * 4, NULL, 2, NULL, 1);
-  // xTaskCreatePinnedToCore(NTC_task, "temperatureRead", 1024 * 2, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(NTC_task, "temperatureRead", 1024 * 4, NULL, 1, NULL, 1);
   xTaskCreatePinnedToCore(stepper_control_task, "stepper_control_task", 1024 * 4, NULL, 3, NULL, 1);
-  // xTaskCreatePinnedToCore(ina226_task, "ina226_task", 1024 * 3, NULL, 1, NULL, 1);
-  // xTaskCreatePinnedToCore(Fan_task, "Fan_Task", 1024 * 2, NULL, 1, NULL, 1);
-  // xTaskCreatePinnedToCore(fault_task, "fault_task", 1024 * 3, NULL, 3, &faultTaskHandle, 1);
+  xTaskCreatePinnedToCore(ina226_task, "ina226_task", 1024 * 3, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(Fan_task, "Fan_Task", 1024 * 2, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(fault_task, "fault_task", 1024 * 3, NULL, 3, &faultTaskHandle, 1);
   xTaskCreatePinnedToCore(webTask, "webTask", 1024 * 8, NULL, 1, NULL, 1);
 }
 
 void loop() {
-  vTaskDelay(pdMS_TO_TICKS(1000));
+  if (isH_BridgeFault) {
+    Serial.println("8701故障");
+    buzzer(5,100,100);
+  } else {
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
 }

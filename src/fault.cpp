@@ -8,6 +8,11 @@
 #define ARDUINO_IDE
 
 static const char* TAG = "FAULT";
+volatile bool isH_BridgeFault = false;
+volatile bool isChopping      = false;
+
+TaskHandle_t faultTaskHandle = NULL;
+
 
 /** DRV8701故障引脚 nFAULT
     当芯片检测到以下故障时此引脚被拉低：
@@ -96,14 +101,14 @@ void IRAM_ATTR       drv8872_Fault_ISR() {
 }
 #endif
 
-volatile bool isH_BridgeFault = false;
-volatile bool isChopping      = false;
-
-TaskHandle_t faultTaskHandle = NULL;
-
 void fault_init() {
   pinMode(H_BridgeFault_pin, INPUT); // 已外部上拉
   pinMode(chop_pin, INPUT);          // 已外部上拉
+#ifdef TMC2209
+  pinMode(stepperFault_pin, INPUT_PULLDOWN); 
+#elif defined(DRV8872)
+  pinMode(drv8872_Fault_pin, INPUT_PULLUP);
+#endif
 }
 
 void fault_task(void* pvParameters) {
@@ -111,10 +116,8 @@ void fault_task(void* pvParameters) {
   attachInterrupt(digitalPinToInterrupt(H_BridgeFault_pin), H_BridgeFault_ISR, CHANGE);
   attachInterrupt(digitalPinToInterrupt(chop_pin), chop_ISR, CHANGE);
 #ifdef TMC2209
-  pinMode(stepperFault_pin, INPUT); // 推挽输出，无需外部上下拉
   attachInterrupt(digitalPinToInterrupt(stepperFault_pin), stepperFault_ISR, CHANGE);
 #elif defined(DRV8872)
-  pinMode(drv8872_Fault_pin, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(drv8872_Fault_pin), drv8872_Fault_ISR, CHANGE);
 #endif
   uint32_t notifiedValue;

@@ -15,7 +15,7 @@
 #include <freertos/task.h>
 
 static const char* TAG         = "web";
-static const char* ap_ssid     = "crazybeans";
+static const char* ap_ssid     = "壮士～且慢";
 static const char* ap_password = "12345678";
 static const int   ap_channel  = 1;
 static bool        webActive   = false;

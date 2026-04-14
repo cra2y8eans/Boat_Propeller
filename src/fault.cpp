@@ -57,7 +57,6 @@ void IRAM_ATTR chop_ISR() {
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
-#ifdef TMC2209
 /** TMC2209故障引脚 DIAG
     在不启用StallGuard4功能，当发生以下情况时，DIAG 引脚会被拉高：
             1、短路保护：电机绕组对 GND 短路或对 VS 短路。
@@ -77,40 +76,16 @@ void IRAM_ATTR stepperFault_ISR() {
   xTaskNotifyFromISR(faultTaskHandle, TMC2209_FAULT, eSetValueWithOverwrite, &xHigherPriorityTaskWoken);
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
-#elif defined(DRV8872)
-/** DRV8872故障引脚 nFAULT
-    nFAULT 引脚会在以下三种保护电路被触发时变为低电平：
-            1、VM 欠压锁定 （UVLO）：电源电压低于欠压锁定阈值。
-            2、过流保护 （OCP）：输出电流超过过流保护阈值。
-            3、热关断 （TSD）：芯片内部结温超过安全限值（约175°C）。
-    该芯片具有自动故障恢复功能。当故障条件被移除后，芯片会自动恢复正常工作，同时 nFAULT 引脚会释放（即回到高阻抗状态，由外部上拉电阻拉高）。
 
-    注：该引脚为开漏输出，需外部上拉。
-*/
-#define DRV8872_FAULT 4
-static const uint8_t drv8872_Fault_pin = 17; // DRV8872 故障引脚
-volatile bool        isDrv8872Fault    = false;
-void IRAM_ATTR       drv8872_Fault_ISR() {
-  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-  isDrv8872Fault                      = !isDrv8872Fault;
-  xTaskNotifyFromISR(faultTaskHandle, DRV8872_FAULT, eSetValueWithOverwrite, &xHigherPriorityTaskWoken);
-  portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-}
-#endif
 
 void fault_init() {
   pinMode(H_BridgeFault_pin, INPUT); // 已外部上拉
   pinMode(chop_pin, INPUT);          // 已外部上拉
+  pinMode(stepperFault_pin, INPUT_PULLDOWN);
 
   attachInterrupt(digitalPinToInterrupt(H_BridgeFault_pin), H_BridgeFault_ISR, CHANGE);
   attachInterrupt(digitalPinToInterrupt(chop_pin), chop_ISR, CHANGE);
-#ifdef TMC2209
-  pinMode(stepperFault_pin, INPUT_PULLDOWN);
   attachInterrupt(digitalPinToInterrupt(stepperFault_pin), stepperFault_ISR, CHANGE);
-#elif defined(DRV8872)
-  pinMode(drv8872_Fault_pin, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(drv8872_Fault_pin), drv8872_Fault_ISR, CHANGE);
-#endif
 }
 
 void fault_task(void* pvParameters) {

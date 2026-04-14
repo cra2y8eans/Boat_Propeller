@@ -1,115 +1,136 @@
 #include "step.h"
 #include "ESPNOW.h"
+#include "FastAccelStepper.h"
 #include "button.h"
 #include "esp_log.h"
 #include "fault.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "motor.h"
+#include <TMCStepper.h>
 
-#define AUTO_DISABLE_DELAY 60000 // 超时休眠，单位毫秒
+static portMUX_TYPE  step_Mux = portMUX_INITIALIZER_UNLOCKED;
+static const char*   TAG      = "stepper";
+static const uint8_t enPin    = 35,
+                     dirPin   = 14,
+                     stepPin  = 21,
+                     rxPin    = 39,
+                     txPin    = 42,
+                     uartAddr = 0;
 
-static portMUX_TYPE  step_Mux          = portMUX_INITIALIZER_UNLOCKED; // 定义临界区变量
-static const char*   TAG               = "stepper";                    // 日志标签
-static const uint8_t step_dir          = 14;                           // 步进方向引脚
-static const uint8_t step_on           = 47;                           // 步进引脚
-static const uint8_t step_en           = 35;                           // 步进使能引脚
-static unsigned long lastOperationTime = 0;                            // 上一次操作时间
-static bool          isSleeped         = true;                         // 电机是否休眠；默认休眠。休眠时step_en为高电平
+static uint8_t     steps           = 2;    // 微步细分
+static uint16_t    stepCurrent     = 2000; // 默认电流 mA
+static bool        stealthChopMode = true; // true = StealthChop(静音), false = SpreadCycle(高速)
+static const float Rsense          = 0.1;
+
+TMC2209Stepper         myStepper(&Serial1, Rsense, uartAddr);
+FastAccelStepperEngine TMC2209engine = FastAccelStepperEngine();
+FastAccelStepper*      stepper       = NULL;
+
+// 获取当前步进电机的负载值
+uint16_t getSG_RESULT() {
+  return myStepper.SG_RESULT();
+}
+
+// 获取当前步进电机的实际电流值 (mA)
+uint16_t getStepCurrent() {
+  return myStepper.cs2rms(myStepper.cs_actual());
+}
+
+// 设置静音模式 (true) 或高速模式 (false)
+void setStealthChopMode(bool enable) {
+  myStepper.en_spreadCycle(!enable); // enable=false 时使用 SpreadCycle
+  stealthChopMode = enable;
+  ESP_LOGI(TAG, "StealthChop mode: %s", enable ? "ON" : "OFF");
+}
+
+bool getStealthChopMode() {
+  return stealthChopMode;
+}
+
+// 设置最大电流 (mA)
+void setStepCurrent(uint16_t current_mA) {
+  stepCurrent = current_mA;
+  myStepper.rms_current(stepCurrent);
+  ESP_LOGI(TAG, "Step current set to %d mA", stepCurrent);
+}
+
+uint16_t getStepCurrentSetting() {
+  return stepCurrent;
+}
+
+// 速度档位映射为频率 (Hz)
+static uint32_t speedLevelToHz(uint8_t level) {
+  // 1档最慢，5档最快，范围可调
+  // 例如: 1档 200Hz, 5档 1000Hz
+  return level * 200; // 200,400,600,800,1000 Hz
+}
+
+void stepperEmergencyStop() {
+  stepper->stopMove();
+}
 
 void stepper_init() {
-  pinMode(step_dir, OUTPUT);
-  pinMode(step_on, OUTPUT);
-  pinMode(step_en, OUTPUT);
-  digitalWrite(step_en, HIGH);
-}
+  Serial1.begin(115200, SERIAL_8N1, rxPin, txPin);
+  delay(500);
+  pinMode(stepPin, OUTPUT);
+  pinMode(dirPin, OUTPUT);
+  pinMode(enPin, OUTPUT);
+  myStepper.begin();
+  myStepper.toff(4);
+  myStepper.rms_current(stepCurrent);
+  myStepper.microsteps(steps);                // 1/2微步
+  myStepper.en_spreadCycle(!stealthChopMode); // 默认静音模式
+  myStepper.TCOOLTHRS(0xFFFFF);               // 启用所有速度下的 StallGuard
+  myStepper.SGTHRS(58);
+  ESP_LOGI(TAG, "TMC2209 初始化完成");
 
-// 将速度等级转换为微秒数
-static uint16_t speedToMicroseconds(uint8_t level) {
-  return 3000 - (level - 1) * 700; // 1档3000us，5档1000us，线性递减
-}
-void stepperEmergencyStop() {
-  digitalWrite(step_en, HIGH);
-  digitalWrite(step_on, LOW);
-  isSleeped = true;
-  ESP_LOGW(TAG, "步进电机紧急停止");
+  TMC2209engine.init();
+  stepper = TMC2209engine.stepperConnectToPin(stepPin);
+  if (stepper) {
+    stepper->setDirectionPin(dirPin);
+    stepper->setEnablePin(enPin);
+    stepper->setAutoEnable(true);             // 是否自动使能
+    stepper->setSpeedInHz(speedLevelToHz(3)); // 设置转速，默认3档。单位HZ，计算的是一个完整周期的时间
+    stepper->setAcceleration(800);            // 缓启缓停，设置加减速度（步/秒²），用于 moveTo / move 模式下的加减速
+    stepper->setDelayToEnable(50);            // 延迟使能，单位 ms
+    stepper->setDelayToDisable(10 * 1000);    // 延迟禁用使能，单位 ms
+    ESP_LOGI(TAG, "FastAccelStepper 初始化完成");
+  }
 }
 
 void stepper_control_task(void* pvParameter) {
-  uint32_t         nextToggleTime = 0;     // 下一次引脚切换时间（微秒）
-  bool             pinState       = false; // 当前 step_on 引脚电平
-  bool             pulseActive    = false; // 是否正在产生脉冲序列
-  uint32_t         pulseInterval  = 2000;  // 默认脉冲间隔（微秒）
   TickType_t       xLastWakeTime  = xTaskGetTickCount();
-  const TickType_t xPeriod        = pdMS_TO_TICKS(1); // 单位ms，换算为频率： 1000Hz → 周期为 1000次/秒
+  const TickType_t xPeriod        = pdMS_TO_TICKS(1);
+  uint8_t          lastSpeedLevel = 0;
+
   while (1) {
-    // 如果步进电机故障，则等待1秒后重试
-    if (isStepperFault) {
-      vTaskDelayUntil(&xLastWakeTime, xPeriod);
-      continue;
-    }
-    uint32_t now = micros();
-    // 读取共享数据（临界区保护）
     taskENTER_CRITICAL(&step_Mux);
     ControlMode mode       = getCurrentCtrlMode();
     bool        turnLeft   = FootPadData.data[0];
     bool        turnRight  = FootPadData.data[1];
-    bool        dirReverse = isAccelButtonLongPressed; // 方向翻转标志
+    bool        dirReverse = isAccelButtonLongPressed;
     taskEXIT_CRITICAL(&step_Mux);
-    uint8_t speedLevel = getStepSpeed(); // 步进速度档位（1~5）
-    // 计算脉冲间隔（微秒）
-    pulseInterval = speedToMicroseconds(speedLevel);
-    // 判断是否需要工作（仅脚控/巡航模式且有转向命令）
-    bool needWork = (mode == FOOT_MODE || mode == CRUISE_MODE) && (turnLeft || turnRight);
-    if (needWork) {
-      // 唤醒电机（使能低电平有效）
-      if (isSleeped) {
-        digitalWrite(step_en, LOW);
-        isSleeped         = false;
-        lastOperationTime = millis();
-      }
-      // 设置方向（根据 dirReverse 翻转）
-      if (turnLeft && !turnRight) {
-        digitalWrite(step_dir, dirReverse ? HIGH : LOW);
-      } else if (turnRight && !turnLeft) {
-        digitalWrite(step_dir, dirReverse ? LOW : HIGH);
-      }
-      // 非阻塞脉冲产生
-      if (!pulseActive) {
-        // 开始一个新脉冲：拉高
-        digitalWrite(step_on, HIGH);
-        pinState       = true;
-        nextToggleTime = now + pulseInterval;
-        pulseActive    = true;
-      } else {
-        if (pinState && (now >= nextToggleTime)) {
-          // 高电平结束，拉低
-          digitalWrite(step_on, LOW);
-          pinState       = false;
-          nextToggleTime = now + pulseInterval;
-        } else if (!pinState && (now >= nextToggleTime)) {
-          // 低电平结束，开始下一个脉冲
-          digitalWrite(step_on, HIGH);
-          pinState       = true;
-          nextToggleTime = now + pulseInterval;
-        }
-      }
-      lastOperationTime = millis();
-    } else {
-      // 无转向命令，停止脉冲并确保引脚为低
-      if (pulseActive) {
-        digitalWrite(step_on, LOW);
-        pinState    = false;
-        pulseActive = false;
-      }
-      // 休眠检查
-      if (!isSleeped && (millis() - lastOperationTime > AUTO_DISABLE_DELAY)) {
-        digitalWrite(step_en, HIGH);
-        isSleeped = true;
-        ESP_LOGI(TAG, "步进电机自动休眠");
-      }
+
+    uint8_t speedLevel = getStepSpeed(); // 1~5
+    if (speedLevel != lastSpeedLevel && stepper) {
+      uint32_t freq = speedLevelToHz(speedLevel);
+      stepper->setSpeedInHz(freq);
+      lastSpeedLevel = speedLevel;
+      ESP_LOGI(TAG, "Speed level changed to %d, freq=%d Hz", speedLevel, freq);
     }
-    // 任务延时1ms，让出CPU（使用宏确保可移植）
+
+    if (mode != HAND_MODE) {
+      if (turnLeft && !turnRight) {
+        stepper->runForward();
+      } else if (!turnLeft && turnRight) {
+        stepper->runBackward();
+      } else {
+        stepper->stopMove();
+      }
+    } else {
+      stepper->stopMove();
+    }
     vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }
 }

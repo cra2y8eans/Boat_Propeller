@@ -2,13 +2,13 @@
 #include "ESPNOW.h"
 #include "NTC.h"
 #include "button.h"
-#include "buzzer.h"
 #include "current.h"
 #include "esp_log.h"
 #include "fan.h"
 #include "fault.h"
 #include "led.h"
 #include "motor.h"
+#include "step.h"
 #include <WebServer.h>
 #include <WiFi.h>
 #include <freertos/FreeRTOS.h>
@@ -29,7 +29,7 @@ void setLedBrightness(int brightness) {
   ledBrightness = constrain(brightness, 0, 255);
   sysRGB.setBrightness(ledBrightness);
   modeRGB.setBrightness(ledBrightness);
-  sysRGB.show(); // 实际上两个LED需要分别调用show()
+  sysRGB.show();
   modeRGB.show();
 }
 
@@ -70,6 +70,8 @@ const char index_html[] PROGMEM = R"rawliteral(
         .ok { color: #27ae60; }
         .row { display: flex; justify-content: space-between; margin: 8px 0; }
         input[type=range] { width: 60%; margin-left: 10px; }
+        button { background: #2980b9; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #1c5980; }
     </style>
 </head>
 <body>
@@ -97,7 +99,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             <div class="row">散热风扇: <span id="fanHeat">0</span> %</div>
         </div>
 
-        <!-- 控制状态（新增步进速度） -->
+        <!-- 控制状态 -->
         <div class="card">
             <h2>🎮 控制状态</h2>
             <div class="row">操控模式: <span id="ctrlMode">--</span></div>
@@ -106,6 +108,20 @@ const char index_html[] PROGMEM = R"rawliteral(
             <div class="row">LED亮度:
                 <input type="range" id="ledSlider" min="0" max="255" value="20">
                 <span id="ledVal">20</span>
+            </div>
+        </div>
+
+        <!-- 步进电机高级设置 -->
+        <div class="card">
+            <h2>⚙️ 步进电机设置</h2>
+            <div class="row">SG负载值: <span id="sgResult">0</span></div>
+            <div class="row">实时电流: <span id="stepRealCurrent">0</span> mA</div>
+            <div class="row">设定电流:
+                <input type="range" id="stepCurrentSlider" min="0" max="2000" value="2000">
+                <span id="stepCurrentVal">2000</span> mA
+            </div>
+            <div class="row">模式: <span id="stepModeStatus">静音模式</span>
+                <button id="toggleModeBtn">切换</button>
             </div>
         </div>
 
@@ -122,11 +138,26 @@ const char index_html[] PROGMEM = R"rawliteral(
 <script>
     const ledSlider = document.getElementById('ledSlider');
     const ledVal = document.getElementById('ledVal');
+    const stepCurrentSlider = document.getElementById('stepCurrentSlider');
+    const stepCurrentVal = document.getElementById('stepCurrentVal');
+    const toggleModeBtn = document.getElementById('toggleModeBtn');
 
     ledSlider.oninput = function() {
         let val = this.value;
         ledVal.innerText = val;
         fetch('/setLedBrightness?value=' + val);
+    };
+
+    stepCurrentSlider.oninput = function() {
+        let val = this.value;
+        stepCurrentVal.innerText = val;
+        fetch('/setStepCurrent?current=' + val);
+    };
+
+    toggleModeBtn.onclick = function() {
+        let currentMode = document.getElementById('stepModeStatus').innerText === '静音模式' ? 1 : 0;
+        let newMode = currentMode ? 0 : 1;
+        fetch('/setStealthMode?mode=' + newMode).then(() => fetchData());
     };
 
     function fetchData() {
@@ -150,6 +181,13 @@ const char index_html[] PROGMEM = R"rawliteral(
                 document.getElementById('stepperSpeed').innerText = data.stepperSpeed;
                 ledSlider.value = data.ledBrightness;
                 ledVal.innerText = data.ledBrightness;
+                // 步进电机数据
+                document.getElementById('sgResult').innerText = data.sg_result;
+                document.getElementById('stepRealCurrent').innerText = data.step_real_current;
+                stepCurrentSlider.value = data.step_current_setting;
+                stepCurrentVal.innerText = data.step_current_setting;
+                const modeStatus = data.step_stealth_mode ? "静音模式" : "高速模式";
+                document.getElementById('stepModeStatus').innerText = modeStatus;
                 // 故障显示
                 const faultH = document.getElementById('faultH');
                 faultH.innerHTML = data.isH_BridgeFault ? '<span class="fault">故障</span>' : '<span class="ok">正常</span>';
@@ -176,16 +214,15 @@ void handleRoot() {
 
 void handleData() {
   // 获取传感器数据
-  float vBus_MV      = getBusVoltageMV();
-  float current_MA   = getCurrentMA();
-  float power_MW     = getPowerMW();
-  float temp_PCB     = getPCBtemp();
-  float temp_h_mos   = getHighMosTemp();
-  float temp_l_mos   = getLowMosTemp();
-  float temp_MCU     = getChipTemp();
-  float fanChanSpeed = getFanChanSpeed();
-  float fanHeatSpeed = getFanHeatSpeed();
-
+  float   vBus_MV      = getBusVoltageMV();
+  float   current_MA   = getCurrentMA();
+  float   power_MW     = getPowerMW();
+  float   temp_PCB     = getPCBtemp();
+  float   temp_h_mos   = getHighMosTemp();
+  float   temp_l_mos   = getLowMosTemp();
+  float   temp_MCU     = getChipTemp();
+  float   fanChanSpeed = getFanChanSpeed();
+  float   fanHeatSpeed = getFanHeatSpeed();
   uint8_t stepperSpeed = getStepSpeed();
 
   // 脚踏板数据（使用互斥锁）
@@ -199,19 +236,13 @@ void handleData() {
   // 故障标志
   bool isH_BridgeFault_val = isH_BridgeFault;
   bool isChopping_val      = isChopping;
-#ifdef TMC2209
-  bool isStepperFault_val = isStepperFault;
-  bool isDrv8872Fault_val = false;
-#elif defined(DRV8872)
-  bool isStepperFault_val = false;
-  bool isDrv8872Fault_val = isDrv8872Fault;
-#endif
+  bool isStepperFault_val  = isStepperFault;
+  bool isDrv8872Fault_val  = false;
 
   // 控制状态
   ControlMode mode     = getCurrentCtrlMode();
   String      modeName = getModeName(mode);
   String      motorSpeedStr;
-
   if (mode == HAND_MODE) {
     int8_t motorSpeed = getMotorSpeed();
     if (motorSpeed == 0)
@@ -219,12 +250,18 @@ void handleData() {
     else
       motorSpeedStr = String(motorSpeed);
   } else if (mode == FOOT_MODE || mode == CRUISE_MODE) {
-    uint8_t duty    = getMotorCurrentSpeed(); // 获取当前 PWM 占空比
+    uint8_t duty    = getMotorCurrentSpeed();
     int     percent = duty * 100 / 255;
     motorSpeedStr   = String(percent) + "% (" + String(duty) + "/255)";
   } else {
     motorSpeedStr = "停止";
   }
+
+  // 步进电机额外数据
+  uint16_t sg_result            = getSG_RESULT();
+  uint16_t step_real_current    = getStepCurrent();
+  bool     step_stealth_mode    = getStealthChopMode();
+  uint16_t step_current_setting = getStepCurrentSetting();
 
   // 构建 JSON
   String json = "{";
@@ -247,7 +284,11 @@ void handleData() {
   json += "\"fanHeatSpeed\":" + String(fanHeatSpeed) + ",";
   json += "\"ctrlMode\":\"" + modeName + "\",";
   json += "\"motorSpeed\":\"" + motorSpeedStr + "\",";
-  json += "\"ledBrightness\":" + String(ledBrightness);
+  json += "\"ledBrightness\":" + String(ledBrightness) + ",";
+  json += "\"sg_result\":" + String(sg_result) + ",";
+  json += "\"step_real_current\":" + String(step_real_current) + ",";
+  json += "\"step_stealth_mode\":" + String(step_stealth_mode ? 1 : 0) + ",";
+  json += "\"step_current_setting\":" + String(step_current_setting);
   json += "}";
 
   server.send(200, "application/json", json);
@@ -263,6 +304,30 @@ void handleSetLedBrightness() {
   }
 }
 
+void handleSetStepCurrent() {
+  if (server.hasArg("current")) {
+    int current = server.arg("current").toInt();
+    if (current >= 0 && current <= 2000) {
+      setStepCurrent(current);
+      server.send(200, "text/plain", "OK");
+    } else {
+      server.send(400, "text/plain", "Invalid current");
+    }
+  } else {
+    server.send(400, "text/plain", "Bad Request");
+  }
+}
+
+void handleSetStealthMode() {
+  if (server.hasArg("mode")) {
+    int mode = server.arg("mode").toInt();
+    setStealthChopMode(mode == 1);
+    server.send(200, "text/plain", "OK");
+  } else {
+    server.send(400, "text/plain", "Bad Request");
+  }
+}
+
 // ---------- 启动/停止服务 ----------
 void startWeb() {
   if (webActive) return;
@@ -272,6 +337,8 @@ void startWeb() {
   server.on("/", handleRoot);
   server.on("/data", handleData);
   server.on("/setLedBrightness", handleSetLedBrightness);
+  server.on("/setStepCurrent", handleSetStepCurrent);
+  server.on("/setStealthMode", handleSetStealthMode);
   server.begin();
   webActive = true;
   ESP_LOGI(TAG, "启动Web服务器");

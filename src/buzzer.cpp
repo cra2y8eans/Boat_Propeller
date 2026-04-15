@@ -4,7 +4,7 @@
 
 static const char* TAG = "buzzer";
 // ===== 硬件配置 =====
-static uint8_t buzzerPin = 39;
+static uint8_t buzzerPin = 17;
 
 // ===== 状态机定义 =====
 

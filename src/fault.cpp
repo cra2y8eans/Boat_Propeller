@@ -77,15 +77,35 @@ void IRAM_ATTR stepperFault_ISR() {
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
+/** INA226故障引脚 ALERT
+     当发生以下情况时，ALERT 引脚会被拉低：
+            1、过流：电流超过设定的过流阈值。
+            2、过压：总线和检测电阻电压超过设定的过压阈值。
+            3、欠压：总线和检测电阻电压低于设定的欠压阈值。
+    恢复：xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx。
+
+    注：该引脚为开漏模式，需外部上拉。
+*/
+#define INA226_FAULT 4
+static const uint8_t alertPin      = 8;
+volatile bool        isINA226Fault = false;
+void IRAM_ATTR       INA226Fault_ISR() {
+  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+  isINA226Fault                       = !isINA226Fault;
+  xTaskNotifyFromISR(faultTaskHandle, INA226_FAULT, eSetValueWithOverwrite, &xHigherPriorityTaskWoken);
+  portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+}
 
 void fault_init() {
   pinMode(H_BridgeFault_pin, INPUT); // 已外部上拉
   pinMode(chop_pin, INPUT);          // 已外部上拉
   pinMode(stepperFault_pin, INPUT_PULLDOWN);
+  pinMode(alertPin, INPUT);
 
   attachInterrupt(digitalPinToInterrupt(H_BridgeFault_pin), H_BridgeFault_ISR, CHANGE);
   attachInterrupt(digitalPinToInterrupt(chop_pin), chop_ISR, CHANGE);
   attachInterrupt(digitalPinToInterrupt(stepperFault_pin), stepperFault_ISR, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(alertPin), INA226Fault_ISR, RISING);
 }
 
 void fault_task(void* pvParameters) {
@@ -129,6 +149,15 @@ void fault_task(void* pvParameters) {
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
       }
       break;
+    case INA226_FAULT:
+      if (isINA226Fault) {
+        ESP_LOGE(TAG, "INA226报错!");
+        buzzer(3, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
+        ledSetMode(sysRGB, LED_BLINK, COLOR_RED, 200, 200);
+      } else {
+        ESP_LOGI(TAG, "INA226故障已清除");
+        buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
+      }
     default:
       break;
     }

@@ -22,6 +22,7 @@ static const uint8_t  on_foot_pin       = 1;                            // 模�
 static const uint8_t  on_hand_pin       = 2;                            // 模式引脚
 static const uint8_t  motor_pin         = 9;                            // 电机引脚
 static const uint8_t  dir_pin           = 18;                           // 转向引脚
+static const uint8_t  sleepPin          = 16;                           // 睡眠引脚
 static const uint8_t  motor_channel     = 4;                            // 电机PWM通道
 static const uint8_t  resolution        = 8;                            // 电机PWM精度
 static const uint16_t frequency         = 15000;                        // 电机频率

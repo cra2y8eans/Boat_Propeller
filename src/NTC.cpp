@@ -263,9 +263,9 @@ const float res_table_pcb[121] = {
   0.388   // 120°C
 };
 
-static uint8_t ntc_pcb_pin      = 5;
-static uint8_t ntc_high_mos_pin = 6;
-static uint8_t ntc_low_mos_pin  = 4;
+static uint8_t ntc_pcb_pin      = 6;
+static uint8_t ntc_low_mos_pin  = 5;
+static uint8_t ntc_high_mos_pin = 4;
 
 static volatile float PCB_Temperature      = 0.0f;
 static volatile float High_Mos_Temperature = 0.0f;

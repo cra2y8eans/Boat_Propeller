@@ -9,8 +9,8 @@
 static const char* TAG = "LED";
 
 // ===== 硬件配置 =====
-static const uint8_t SYS_WS2812_PIN  = 16;
-static const uint8_t MODE_WS2812_PIN = 15;
+static const uint8_t SYS_WS2812_PIN  = 15;
+static const uint8_t MODE_WS2812_PIN = 7;
 
 // ===== LED对象 =====
 Adafruit_NeoPixel sysRGB(1, SYS_WS2812_PIN, NEO_GRB + NEO_KHZ800);

@@ -13,9 +13,10 @@ static portMUX_TYPE  step_Mux = portMUX_INITIALIZER_UNLOCKED;
 static const char*   TAG      = "stepper";
 static const uint8_t enPin    = 35,
                      dirPin   = 14,
-                     stepPin  = 21,
+                     stepPin  = 47,
                      rxPin    = 39,
                      txPin    = 42,
+                     indexPin = 21,
                      uartAddr = 0;
 
 static uint8_t     steps           = 2;    // 微步细分

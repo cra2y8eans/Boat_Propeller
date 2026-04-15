@@ -7,8 +7,8 @@
 static const char* TAG = "FAN";
 
 static const uint8_t fan_out_pin  = 36;
-static const uint8_t fan_in_pin   = 37;
-static const uint8_t fan_heat_pin = 38;
+static const uint8_t fan_heat_pin = 37;
+static const uint8_t fan_in_pin   = 38;
 
 static const uint8_t  fan_inout_channel = 3;
 static const uint8_t  fan_heat_channel  = 2;

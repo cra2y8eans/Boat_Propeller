@@ -82,7 +82,8 @@ void IRAM_ATTR stepperFault_ISR() {
             1、过流：电流超过设定的过流阈值。
             2、过压：总线和检测电阻电压超过设定的过压阈值。
             3、欠压：总线和检测电阻电压低于设定的欠压阈值。
-    恢复：xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx。
+    恢复：故障报警可设置为透明模式（默认）和锁存模式。透明模式下，故障条件消除后 ALERT 引脚会自动恢复；
+          锁存模式下，需要通过 I2C 写入寄存器来清除故障状态并释放 ALERT 引脚。
 
     注：该引脚为开漏模式，需外部上拉。
 */
@@ -105,7 +106,7 @@ void fault_init() {
   attachInterrupt(digitalPinToInterrupt(H_BridgeFault_pin), H_BridgeFault_ISR, CHANGE);
   attachInterrupt(digitalPinToInterrupt(chop_pin), chop_ISR, CHANGE);
   attachInterrupt(digitalPinToInterrupt(stepperFault_pin), stepperFault_ISR, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(alertPin), INA226Fault_ISR, RISING);
+  attachInterrupt(digitalPinToInterrupt(alertPin), INA226Fault_ISR, CHANGE);
 }
 
 void fault_task(void* pvParameters) {
@@ -113,7 +114,6 @@ void fault_task(void* pvParameters) {
   while (1) {
     // 阻塞等待通知，收到后通知值存入 notifiedValue
     xTaskNotifyWait(0, 0, &notifiedValue, portMAX_DELAY);
-
     // 根据通知值判断故障源
     switch (notifiedValue) {
     case H_BRIDGE_FAULT:
@@ -123,9 +123,10 @@ void fault_task(void* pvParameters) {
         buzzer(3, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
         ledSetMode(sysRGB, LED_BLINK, COLOR_RED, 200, 200);
       } else {
-        // 故障已清除，恢复正常状态
         ESP_LOGI(TAG, "DRV8701故障已清除");
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
+        sysRGB.clear();
+        sysRGB.show();
       }
       break;
     case SNSOUT_CHOPPING:
@@ -136,6 +137,8 @@ void fault_task(void* pvParameters) {
       } else {
         ESP_LOGI(TAG, "斩波已停止");
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
+        sysRGB.clear();
+        sysRGB.show();
       }
       break;
     case TMC2209_FAULT:
@@ -147,6 +150,8 @@ void fault_task(void* pvParameters) {
       } else {
         ESP_LOGI(TAG, "TMC2209故障已清除");
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
+        sysRGB.clear();
+        sysRGB.show();
       }
       break;
     case INA226_FAULT:
@@ -157,6 +162,8 @@ void fault_task(void* pvParameters) {
       } else {
         ESP_LOGI(TAG, "INA226故障已清除");
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
+        sysRGB.clear();
+        sysRGB.show();
       }
     default:
       break;

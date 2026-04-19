@@ -8,7 +8,7 @@
 #include "led.h"
 #include <Arduino.h>
 
-#define SPEED_STEP 8             // 每次调整的速度步长，值越大加速越快
+#define SPEED_STEP 4             // 每次调整的速度步长，值越大加速越快
 #define SPEED_SCALE_FACTOR 10    // 减速比例系数（用于智能减速），分母，值越小减速越快
 #define DIR_SWITCH_THRESH 20     // 允许切换方向的速度阈值（越小越安全）
 #define SWITCH_DEBOUNCE_DELAY 20 // 按键消抖延时，单位毫秒
@@ -231,8 +231,10 @@ void motorInit() {
   ledcAttachPin(motor_pin, motor_channel);         // 将电机引脚绑定到PWM通道
   ledcWrite(motor_channel, 0);                     // 初始占空比为0
   pinMode(dir_pin, OUTPUT);                        // 设置转向引脚为输出模式
+  pinMode(sleepPin, OUTPUT);                       // 设置睡眠引脚为输出模式
   pinMode(on_hand_pin, INPUT_PULLDOWN);            // 设置手控模式引脚为输入下拉模式
   pinMode(on_foot_pin, INPUT_PULLDOWN);            // 设置脚控模式引脚为输入下拉模式
+  digitalWrite(sleepPin, HIGH);                    // 默认唤醒状态
   digitalWrite(dir_pin, LOW);                      // 设置引脚为默认方向（正转）
   current_dir    = false;                          // 与引脚状态一致
   last_ctrl_mode = STANDBY_MODE;

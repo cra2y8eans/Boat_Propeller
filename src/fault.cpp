@@ -100,7 +100,7 @@ void IRAM_ATTR       INA226Fault_ISR() {
 void fault_init() {
   pinMode(H_BridgeFault_pin, INPUT); // 已外部上拉
   pinMode(chop_pin, INPUT);          // 已外部上拉
-  pinMode(stepperFault_pin, INPUT_PULLDOWN);
+  pinMode(stepperFault_pin, INPUT);  // 推挽输出，无需上拉
   pinMode(alertPin, INPUT);
 
   attachInterrupt(digitalPinToInterrupt(H_BridgeFault_pin), H_BridgeFault_ISR, CHANGE);

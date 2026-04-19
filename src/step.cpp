@@ -82,7 +82,7 @@ void stepper_init() {
   myStepper.rms_current(stepCurrent);
   myStepper.microsteps(steps);                // 1/2微步
   myStepper.en_spreadCycle(!stealthChopMode); // 默认静音模式
-  myStepper.TCOOLTHRS(0xFFFFF);               // 启用所有速度下的 StallGuard
+  // myStepper.TCOOLTHRS(0xFFFFF);               // 启用所有速度下的 StallGuard
   myStepper.SGTHRS(58);
   ESP_LOGI(TAG, "TMC2209 初始化完成");
 

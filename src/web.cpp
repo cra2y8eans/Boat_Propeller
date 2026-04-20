@@ -20,11 +20,10 @@ static const char* ap_password = "12345678";
 static const int   ap_channel  = 1;
 static bool        webActive   = false;
 
-static int ledBrightness = 20; // 全局LED亮度（0-255）
+static int ledBrightness = 20;
 
 WebServer server(80);
 
-// ---------- 辅助函数 ----------
 void setLedBrightness(int brightness) {
   ledBrightness = constrain(brightness, 0, 255);
   sysRGB.setBrightness(ledBrightness);
@@ -64,14 +63,12 @@ const char index_html[] PROGMEM = R"rawliteral(
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
         .card { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         .card h2 { margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 8px; color: #2c3e50; font-size: 1.3rem; }
-        .value { font-size: 1.6rem; font-weight: bold; margin: 8px 0; color: #2980b9; }
-        .unit { font-size: 0.8rem; color: #7f8c8d; }
-        .fault { color: #e74c3c; font-weight: bold; }
-        .ok { color: #27ae60; }
         .row { display: flex; justify-content: space-between; margin: 8px 0; }
         input[type=range] { width: 60%; margin-left: 10px; }
         button { background: #2980b9; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
         button:hover { background: #1c5980; }
+        .fault { color: #e74c3c; font-weight: bold; }
+        .ok { color: #27ae60; }
     </style>
 </head>
 <body>
@@ -95,7 +92,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             <div class="row">低侧MOS: <span id="tempL">0</span> °C</div>
             <div class="row">MCU: <span id="tempMCU">0</span> °C</div>
             <div class="row">脚控MCU: <span id="tempFoot">0</span> °C</div>
-            <div class="row" style="margin-top: 10px; border-top: 1px dashed #ccc; padding-top: 8px;">风道风扇: <span id="fanChan">0</span> %</div>
+            <div class="row" style="margin-top:10px; border-top:1px dashed #ccc; padding-top:8px;">风道风扇: <span id="fanChan">关闭</span></div>
             <div class="row">散热风扇: <span id="fanHeat">0</span> %</div>
         </div>
 
@@ -105,10 +102,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             <div class="row">操控模式: <span id="ctrlMode">--</span></div>
             <div class="row">电机档位: <span id="motorSpeed">--</span></div>
             <div class="row">步进速度: <span id="stepperSpeed">0</span></div>
-            <div class="row">LED亮度:
-                <input type="range" id="ledSlider" min="0" max="255" value="20">
-                <span id="ledVal">20</span>
-            </div>
+            <div class="row">LED亮度: <input type="range" id="ledSlider" min="0" max="255" value="20"> <span id="ledVal">20</span></div>
         </div>
 
         <!-- 步进电机高级设置 -->
@@ -116,13 +110,8 @@ const char index_html[] PROGMEM = R"rawliteral(
             <h2>⚙️ 步进电机设置</h2>
             <div class="row">SG负载值: <span id="sgResult">0</span></div>
             <div class="row">实时电流: <span id="stepRealCurrent">0</span> mA</div>
-            <div class="row">设定电流:
-                <input type="range" id="stepCurrentSlider" min="0" max="2000" value="2000">
-                <span id="stepCurrentVal">2000</span> mA
-            </div>
-            <div class="row">模式: <span id="stepModeStatus">静音模式</span>
-                <button id="toggleModeBtn">切换</button>
-            </div>
+            <div class="row">设定电流: <input type="range" id="stepCurrentSlider" min="0" max="2000" value="2000"> <span id="stepCurrentVal">2000</span> mA</div>
+            <div class="row">模式: <span id="stepModeStatus">静音模式</span> <button id="toggleModeBtn">切换</button></div>
         </div>
 
         <!-- 故障状态 -->
@@ -174,7 +163,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                 document.getElementById('tempL').innerText = data.temp_l_mos;
                 document.getElementById('tempMCU').innerText = data.temp_MCU;
                 document.getElementById('tempFoot').innerText = data.temp_footPadMCU;
-                document.getElementById('fanChan').innerText = data.fanChanSpeed;
+                document.getElementById('fanChan').innerText = data.fanChanState ? "开启" : "关闭";
                 document.getElementById('fanHeat').innerText = data.fanHeatSpeed;
                 document.getElementById('ctrlMode').innerText = data.ctrlMode;
                 document.getElementById('motorSpeed').innerText = data.motorSpeed;
@@ -186,8 +175,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                 document.getElementById('stepRealCurrent').innerText = data.step_real_current;
                 stepCurrentSlider.value = data.step_current_setting;
                 stepCurrentVal.innerText = data.step_current_setting;
-                const modeStatus = data.step_stealth_mode ? "静音模式" : "高速模式";
-                document.getElementById('stepModeStatus').innerText = modeStatus;
+                document.getElementById('stepModeStatus').innerText = data.step_stealth_mode ? "静音模式" : "高速模式";
                 // 故障显示
                 const faultH = document.getElementById('faultH');
                 faultH.innerHTML = data.isH_BridgeFault ? '<span class="fault">故障</span>' : '<span class="ok">正常</span>';
@@ -213,7 +201,6 @@ void handleRoot() {
 }
 
 void handleData() {
-  // 获取传感器数据
   float   vBus_MV      = getBusVoltageMV();
   float   current_MA   = getCurrentMA();
   float   power_MW     = getPowerMW();
@@ -221,11 +208,11 @@ void handleData() {
   float   temp_h_mos   = getHighMosTemp();
   float   temp_l_mos   = getLowMosTemp();
   float   temp_MCU     = getChipTemp();
-  float   fanChanSpeed = getFanChanSpeed();
   float   fanHeatSpeed = getFanHeatSpeed();
+  bool    fanChanState = getFanChanState();
   uint8_t stepperSpeed = getStepSpeed();
 
-  // 脚踏板数据（使用互斥锁）
+  // 脚控数据（使用互斥锁）
   float vPad_mv, vPad_percentage, temp_footPadMCU;
   taskENTER_CRITICAL(&esp_now_Mux);
   vPad_mv         = FootPadData.batVoltage;
@@ -280,7 +267,7 @@ void handleData() {
   json += "\"isStepperFault\":" + String(isStepperFault_val ? 1 : 0) + ",";
   json += "\"isDrv8872Fault\":" + String(isDrv8872Fault_val ? 1 : 0) + ",";
   json += "\"stepperSpeed\":" + String(stepperSpeed) + ",";
-  json += "\"fanChanSpeed\":" + String(fanChanSpeed) + ",";
+  json += "\"fanChanState\":" + String(fanChanState ? 1 : 0) + ",";
   json += "\"fanHeatSpeed\":" + String(fanHeatSpeed) + ",";
   json += "\"ctrlMode\":\"" + modeName + "\",";
   json += "\"motorSpeed\":\"" + motorSpeedStr + "\",";
@@ -352,7 +339,6 @@ void stopWeb() {
   ESP_LOGI(TAG, "关闭Web服务器");
 }
 
-// ---------- FreeRTOS 任务 ----------
 void webTask(void* pvParameters) {
   while (1) {
     if (isAccelButtonLongPressed) {

@@ -64,7 +64,7 @@ uint16_t getStepCurrentSetting() {
 static uint32_t speedLevelToHz(uint8_t level) {
   // 1档最慢，5档最快，范围可调
   // 例如: 1档 200Hz, 5档 1000Hz
-  return level * 200; // 200,400,600,800,1000 Hz
+  return level * 60; // 200,400,600,800,1000 Hz
 }
 
 void stepperEmergencyStop() {

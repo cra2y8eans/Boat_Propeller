@@ -8,8 +8,8 @@
 #include "led.h"
 #include <Arduino.h>
 
-#define SPEED_STEP 4             // 每次调整的速度步长，值越大加速越快
-#define SPEED_SCALE_FACTOR 10    // 减速比例系数（用于智能减速），分母，值越小减速越快
+#define SPEED_STEP 2             // 每次调整的速度步长，值越大加速越快
+#define SPEED_SCALE_FACTOR 50    // 减速比例系数（用于智能减速），分母，值越小减速越快
 #define DIR_SWITCH_THRESH 20     // 允许切换方向的速度阈值（越小越安全）
 #define SWITCH_DEBOUNCE_DELAY 20 // 按键消抖延时，单位毫秒
 #define PWM_MIN_DUTY 50          // 最小档位对应的PWM值（1档）
@@ -76,7 +76,7 @@ void modeChangeOperation(ControlMode newMode) {
     break;
   case FOOT_MODE: // 脚控模式。该模式下电推转速由脚控控制。按钮可以控制步进电机转速
     ESP_LOGI(TAG, "脚控模式");
-    ledSetMode(modeRGB, LED_ON, COLOR_BLUE, 0, 0);
+    ledSetMode(modeRGB, LED_ON, COLOR_CYAN, 0, 0);
     buzzer(1, SHORT_BEEP_DURATION, 0);
     break;
   case CRUISE_MODE: // 巡航模式。该模式下电推转速由脚控控制。按钮可以控制步进电机转速
@@ -119,8 +119,14 @@ static void handleMotorRamp(bool enable, uint8_t target_pwm, bool target_dir) {
       if (current_speed < target_pwm) current_speed = target_pwm;
     }
   } else {
+    // 减速部分
     if (current_speed > 0) {
-      int decel_step = max(2, current_speed / SPEED_SCALE_FACTOR);
+      int decel_step;
+      if (current_speed <= 5) {
+        decel_step = 1; // 最后几步平滑减速
+      } else {
+        decel_step = max(1, current_speed / SPEED_SCALE_FACTOR);
+      }
       current_speed -= decel_step;
       if (current_speed < 0) current_speed = 0;
     }
@@ -192,25 +198,25 @@ void motorControl(void* pvParameters) {
       //    档位规则：
       //      - 0: 停止
       //      - 正转档位 1~5: 1 最慢，5 最快
-      //      - 反转档位 -1~-3: -1 最慢，-3 最快
+      //      - 反转档位 -1~-5: -1 最慢，-5 最快
       //
       //    我们将正转档位线性映射到 PWM 50~255（可根据电机启动电压调整下限）
       //    反转档位的绝对值同样映射到 PWM 50~255，但方向标志置为反转。
-      //    映射方式：档位 1 对应 50，档位 5 对应 255；反转 -1 对应 50，-3 对应 255。
+      //    映射方式：档位 1 对应 50，档位 5 对应 255；反转 -1 对应 50，-5 对应 255。
       // ------------------------------------------------------------
-      int8_t  local_speed = getMotorSpeed();    // 获取当前手动档位速度
-      bool    enable      = (local_speed != 0); // 非零档位才使能电机
-      uint8_t target_pwm  = 0;
-      bool    target_dir  = false; // false = 正转, true = 反转（与硬件引脚逻辑匹配）
+      int8_t      local_speed = getMotorSpeed();    // 获取当前手动档位速度
+      bool        enable      = (local_speed != 0); // 非零档位才使能电机
+      uint8_t     target_pwm  = 0;
+      static bool target_dir  = false; // false = 正转, true = 反转（与硬件引脚逻辑匹配）
 
       if (local_speed > 0) {
         // 正转：档位 1~5 映射到 PWM 50~255
-        target_pwm = map(local_speed, 1, 5, PWM_MIN_DUTY, PWM_MAX_DUTY);
+        target_pwm = map(local_speed, FORWARD_MIN_SPEED, FORWARD_MAX_SPEED, PWM_MIN_DUTY, PWM_MAX_DUTY);
         target_dir = false; // 正转方向
       } else if (local_speed < 0) {
-        // 反转：取绝对值，档位 1~3 映射到 PWM 50~255
-        uint8_t abs_speed = abs(local_speed); // 绝对值 1~3
-        target_pwm        = map(abs_speed, 1, 3, PWM_MIN_DUTY, PWM_MAX_DUTY);
+        // 反转：取绝对值，档位 1~5 映射到 PWM 50~255
+        uint8_t abs_speed = abs(local_speed); // 绝对值 1~5
+        target_pwm        = map(abs_speed, FORWARD_MIN_SPEED, FORWARD_MAX_SPEED, PWM_MIN_DUTY, PWM_MAX_DUTY);
         target_dir        = true; // 反转方向
       }
       handleMotorRamp(enable, target_pwm, target_dir);

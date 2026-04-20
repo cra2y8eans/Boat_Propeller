@@ -42,12 +42,12 @@ static void accelButtonShortPressed() { // 加速
   switch (mode) {
   case HAND_MODE:
     taskENTER_CRITICAL(&speedMutex);
-    motorSpeed = min(motorSpeed + 1, 5); // 增加档位，最大为5
+    motorSpeed = min(motorSpeed + 1, FORWARD_MAX_SPEED); // 增加档位，最大为5
     taskEXIT_CRITICAL(&speedMutex);
     break;
   case FOOT_MODE:
     taskENTER_CRITICAL(&speedMutex);
-    stepSpeed = min(stepSpeed + 1, 5); // 增加档位，最大为5
+    stepSpeed = min(stepSpeed + 1, STEP_MAX_SPEED); // 增加档位，最大为5
     taskEXIT_CRITICAL(&speedMutex);
     break;
   default:
@@ -60,12 +60,12 @@ static void decelButtonShortPressed() { // 减速
   switch (mode) {
   case HAND_MODE:
     taskENTER_CRITICAL(&speedMutex);
-    motorSpeed = max(motorSpeed - 1, -3); // 减少档位，最小为1
+    motorSpeed = max(motorSpeed - 1, REVERSE_MAX_SPEED); // 减少档位，-5表示最大反转档位
     taskEXIT_CRITICAL(&speedMutex);
     break;
   case FOOT_MODE:
     taskENTER_CRITICAL(&speedMutex);
-    stepSpeed = max(stepSpeed - 1, 1); // 减少档位，最小为-3
+    stepSpeed = max(stepSpeed - 1, STEP_MIN_SPEED); // 减少档位，最小为1
     taskEXIT_CRITICAL(&speedMutex);
     break;
   default:

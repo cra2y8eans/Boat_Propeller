@@ -125,8 +125,7 @@ void fault_task(void* pvParameters) {
       } else {
         ESP_LOGI(TAG, "DRV8701故障已清除");
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        sysRGB.clear();
-        sysRGB.show();
+        ledSetMode(sysRGB, LED_OFF, 0, 0, 0); // 关闭 LED 并重置状态机
       }
       break;
     case SNSOUT_CHOPPING:
@@ -137,8 +136,7 @@ void fault_task(void* pvParameters) {
       } else {
         ESP_LOGI(TAG, "斩波已停止");
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        sysRGB.clear();
-        sysRGB.show();
+        ledSetMode(sysRGB, LED_OFF, 0, 0, 0); // 关闭 LED 并重置状态机;
       }
       break;
     case TMC2209_FAULT:
@@ -150,8 +148,7 @@ void fault_task(void* pvParameters) {
       } else {
         ESP_LOGI(TAG, "TMC2209故障已清除");
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        sysRGB.clear();
-        sysRGB.show();
+        ledSetMode(sysRGB, LED_OFF, 0, 0, 0); // 关闭 LED 并重置状态机
       }
       break;
     case INA226_FAULT:
@@ -162,8 +159,7 @@ void fault_task(void* pvParameters) {
       } else {
         ESP_LOGI(TAG, "INA226故障已清除");
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        sysRGB.clear();
-        sysRGB.show();
+        ledSetMode(sysRGB, LED_OFF, 0, 0, 0); // 关闭 LED 并重置状态机
       }
     default:
       break;

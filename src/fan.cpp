@@ -26,7 +26,7 @@ static const uint8_t  fan_resolution   = 8;
 #define CHANNEL_OFF_TEMP 50.0f // 关闭温度
 
 // 报警阈值
-#define ALARM_TEMP 70.0f
+#define ALARM_TEMP 80.0f
 
 static int  duty_heat;               // 散热风扇 PWM 占空比
 static bool channelFanState = false; // 通道风扇当前状态

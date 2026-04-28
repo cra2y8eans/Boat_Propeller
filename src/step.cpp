@@ -79,8 +79,9 @@ void stepper_init() {
   myStepper.rms_current(stepCurrent);
   myStepper.microsteps(steps);                // 1/2微步
   myStepper.en_spreadCycle(!stealthChopMode); // 默认静音模式
+  myStepper.SGTHRS(0);                        // 关闭 StallGuard 阈值
+  myStepper.TCOOLTHRS(0);                     // 关闭 StallGuard 阈值
   // myStepper.TCOOLTHRS(0xFFFFF);               // 启用所有速度下的 StallGuard
-  myStepper.SGTHRS(58);
   ESP_LOGI(TAG, "TMC2209 初始化完成");
 
   TMC2209engine.init();
@@ -92,7 +93,7 @@ void stepper_init() {
     stepper->setSpeedInHz(speedLevelToHz(3)); // 设置转速，默认3档。单位HZ，计算的是一个完整周期的时间
     stepper->setAcceleration(800);            // 缓启缓停，设置加减速度（步/秒²），用于 moveTo / move 模式下的加减速
     stepper->setDelayToEnable(50);            // 延迟使能，单位 ms
-    stepper->setDelayToDisable(10 * 1000);    // 延迟禁用使能，单位 ms
+    stepper->setDelayToDisable(30 * 1000);    // 延迟禁用使能，单位 ms
     ESP_LOGI(TAG, "FastAccelStepper 初始化完成");
   }
 }

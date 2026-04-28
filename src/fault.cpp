@@ -97,6 +97,21 @@ void IRAM_ATTR       INA226Fault_ISR() {
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
+static uint32_t getModeColor(ControlMode mode) {
+  switch (mode) {
+  case HAND_MODE:
+    return COLOR_GREEN;
+  case FOOT_MODE:
+    return COLOR_CYAN;
+  case CRUISE_MODE:
+    return COLOR_YELLOW;
+  case STANDBY_MODE:
+    return COLOR_RED;
+  default:
+    return COLOR_WHITE;
+  }
+}
+
 void fault_init() {
   pinMode(H_BridgeFault_pin, INPUT); // 已外部上拉
   pinMode(chop_pin, INPUT);          // 已外部上拉
@@ -125,7 +140,9 @@ void fault_task(void* pvParameters) {
       } else {
         ESP_LOGI(TAG, "DRV8701故障已清除");
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        ledSetMode(sysRGB, LED_OFF, 0, 0, 0); // 关闭 LED 并重置状态机
+        // 故障清除后恢复模式灯
+        ControlMode currentMode = getCurrentCtrlMode();
+        ledSetMode(modeRGB, LED_ON, getModeColor(currentMode), 0, 0);
       }
       break;
     case SNSOUT_CHOPPING:
@@ -136,7 +153,9 @@ void fault_task(void* pvParameters) {
       } else {
         ESP_LOGI(TAG, "斩波已停止");
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        ledSetMode(sysRGB, LED_OFF, 0, 0, 0); // 关闭 LED 并重置状态机;
+        // 故障清除后恢复模式灯
+        ControlMode currentMode = getCurrentCtrlMode();
+        ledSetMode(modeRGB, LED_ON, getModeColor(currentMode), 0, 0);
       }
       break;
     case TMC2209_FAULT:
@@ -148,7 +167,9 @@ void fault_task(void* pvParameters) {
       } else {
         ESP_LOGI(TAG, "TMC2209故障已清除");
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        ledSetMode(sysRGB, LED_OFF, 0, 0, 0); // 关闭 LED 并重置状态机
+        // 故障清除后恢复模式灯
+        ControlMode currentMode = getCurrentCtrlMode();
+        ledSetMode(modeRGB, LED_ON, getModeColor(currentMode), 0, 0);
       }
       break;
     case INA226_FAULT:
@@ -159,7 +180,9 @@ void fault_task(void* pvParameters) {
       } else {
         ESP_LOGI(TAG, "INA226故障已清除");
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        ledSetMode(sysRGB, LED_OFF, 0, 0, 0); // 关闭 LED 并重置状态机
+        // 故障清除后恢复模式灯
+        ControlMode currentMode = getCurrentCtrlMode();
+        ledSetMode(modeRGB, LED_ON, getModeColor(currentMode), 0, 0);
       }
     default:
       break;

@@ -7,7 +7,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "motor.h"
-#include <TMCStepper.h>
 
 static portMUX_TYPE  step_Mux = portMUX_INITIALIZER_UNLOCKED;
 static const char*   TAG      = "stepper";

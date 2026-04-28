@@ -1,6 +1,9 @@
 #pragma once
 
 #include "Arduino.h"
+#include <TMCStepper.h>
+
+extern TMC2209Stepper myStepper;
 
 void     stepper_init();
 uint16_t getSG_RESULT();

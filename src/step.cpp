@@ -119,7 +119,7 @@ void stepper_control_task(void* pvParameter) {
       ESP_LOGI(TAG, "Speed level changed to %d, freq=%d Hz", speedLevel, freq);
     }
 
-    if (mode != HAND_MODE) {
+    if (mode != HAND_MODE && !isStepperFault) {
       if (turnLeft && !turnRight) {
         stepper->runForward();
       } else if (!turnLeft && turnRight) {
@@ -130,6 +130,14 @@ void stepper_control_task(void* pvParameter) {
     } else {
       stepper->stopMove();
     }
+    // // 如果步进电机发生故障，通过长按减速按钮尝试重新使能来复位驱动器
+    // if (isStepperFault) {
+    //   if (isDecelButtonLongPressed) {
+    //     digitalWrite(enPin, HIGH);
+    //     vTaskDelay(pdMS_TO_TICKS(100));
+    //     digitalWrite(enPin, LOW);
+    //   }
+    // }
     vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }
 }

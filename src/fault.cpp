@@ -1,4 +1,5 @@
 #include "fault.h"
+#include "ESPNOW.h"
 #include "buzzer.h"
 #include "esp_log.h"
 #include "led.h"
@@ -44,17 +45,15 @@ static const uint8_t chop_pin = 10;
 */
 // 中断处理函数使用IRAM_ATTR宏定义，避免函数被编译到flash中（放在RAM中），提高执行效率
 void IRAM_ATTR H_BridgeFault_ISR() {
-  BaseType_t xHigherPriorityTaskWoken = pdFALSE; // 用于中断处理任务切换，如果有更高优先级的任务需要运行，则切换到该任务（系统自动改为pdTRUE）
-  isH_BridgeFault                     = !isH_BridgeFault;
+  // 中断在触发并执行回调函数之后，原则上会返回到中断发生前的代码继续执行
+  // 但如果在中断处理过程中有更高优先级的任务需要运行，系统会在中断结束后切换到该任务
+  // 所以我们需要使用 xHigherPriorityTaskWoken 来指示是否需要切换任务
+  // 先假设没有更高优先级的任务，所以把 xHigherPriorityTaskWoken 初始化为 pdFALSE
+  // 如果有更高优先级的任务，系统会把 xHigherPriorityTaskWoken 设置为 pdTRUE，表示需要切换到该任务
+  BaseType_t xHigherPriorityTaskWoken = pdFALSE;                               // 用于中断处理任务切换，如果有更高优先级的任务需要运行，则切换到该任务（系统自动改为pdTRUE）
+  isH_BridgeFault                     = digitalRead(H_BridgeFault_pin) == LOW; // 读取引脚状态，更新故障标志位
   xTaskNotifyFromISR(faultTaskHandle, H_BRIDGE_FAULT, eSetValueWithOverwrite, &xHigherPriorityTaskWoken);
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken); // 切换任务，如果有更高优先级的任务需要运行，则切换到该任务
-}
-
-void IRAM_ATTR chop_ISR() {
-  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-  isChopping                          = !isChopping;
-  xTaskNotifyFromISR(faultTaskHandle, SNSOUT_CHOPPING, eSetValueWithOverwrite, &xHigherPriorityTaskWoken);
-  portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
 /** TMC2209故障引脚 DIAG
@@ -72,7 +71,7 @@ volatile bool        isStepperFault   = false;
 
 void IRAM_ATTR stepperFault_ISR() {
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-  isStepperFault                      = !isStepperFault;
+  isStepperFault                      = digitalRead(stepperFault_pin) == HIGH; // 读取引脚状态，更新故障标志位
   xTaskNotifyFromISR(faultTaskHandle, TMC2209_FAULT, eSetValueWithOverwrite, &xHigherPriorityTaskWoken);
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
@@ -92,7 +91,7 @@ static const uint8_t alertPin      = 8;
 volatile bool        isINA226Fault = false;
 void IRAM_ATTR       INA226Fault_ISR() {
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-  isINA226Fault                       = !isINA226Fault;
+  isINA226Fault                       = digitalRead(alertPin) == LOW; // 读取引脚状态，更新故障标志位
   xTaskNotifyFromISR(faultTaskHandle, INA226_FAULT, eSetValueWithOverwrite, &xHigherPriorityTaskWoken);
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
@@ -119,7 +118,6 @@ void fault_init() {
   pinMode(alertPin, INPUT);
 
   attachInterrupt(digitalPinToInterrupt(H_BridgeFault_pin), H_BridgeFault_ISR, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(chop_pin), chop_ISR, CHANGE);
   attachInterrupt(digitalPinToInterrupt(stepperFault_pin), stepperFault_ISR, CHANGE);
   attachInterrupt(digitalPinToInterrupt(alertPin), INA226Fault_ISR, CHANGE);
 }
@@ -136,22 +134,9 @@ void fault_task(void* pvParameters) {
         ESP_LOGE(TAG, "DRV8701报错!");
         motorEmergencyStop(); // 立即停止电机
         buzzer(3, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        ledSetMode(sysRGB, LED_BLINK, COLOR_RED, 200, 200);
+        ledSetMode(modeRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL); // H桥故障时，模式灯闪烁红色
       } else {
         ESP_LOGI(TAG, "DRV8701故障已清除");
-        buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        // 故障清除后恢复模式灯
-        ControlMode currentMode = getCurrentCtrlMode();
-        ledSetMode(modeRGB, LED_ON, getModeColor(currentMode), 0, 0);
-      }
-      break;
-    case SNSOUT_CHOPPING:
-      if (isChopping) {
-        ESP_LOGE(TAG, "正在斩波!");
-        buzzer(3, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        ledSetMode(sysRGB, LED_BLINK, COLOR_YELLOW, 200, 200);
-      } else {
-        ESP_LOGI(TAG, "斩波已停止");
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
         // 故障清除后恢复模式灯
         ControlMode currentMode = getCurrentCtrlMode();
@@ -163,26 +148,32 @@ void fault_task(void* pvParameters) {
         ESP_LOGE(TAG, "TMC2209报错!");
         stepperEmergencyStop();
         buzzer(3, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        ledSetMode(sysRGB, LED_BLINK, COLOR_RED, 200, 200);
+        ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL); // TMC2209故障时，系统灯闪烁红色
       } else {
         ESP_LOGI(TAG, "TMC2209故障已清除");
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
         // 故障清除后恢复模式灯
-        ControlMode currentMode = getCurrentCtrlMode();
-        ledSetMode(modeRGB, LED_ON, getModeColor(currentMode), 0, 0);
+        if (isFootPadOnline) {
+          ledSetMode(sysRGB, LED_ON, COLOR_BLUE, 0, 0);
+        } else {
+          ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
+        }
       }
       break;
     case INA226_FAULT:
       if (isINA226Fault) {
         ESP_LOGE(TAG, "INA226报错!");
         buzzer(3, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        ledSetMode(sysRGB, LED_BLINK, COLOR_RED, 200, 200);
+        ledSetMode(sysRGB, LED_BLINK, COLOR_YELLOW, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
       } else {
         ESP_LOGI(TAG, "INA226故障已清除");
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
         // 故障清除后恢复模式灯
-        ControlMode currentMode = getCurrentCtrlMode();
-        ledSetMode(modeRGB, LED_ON, getModeColor(currentMode), 0, 0);
+        if (isFootPadOnline) {
+          ledSetMode(sysRGB, LED_ON, COLOR_BLUE, 0, 0);
+        } else {
+          ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
+        }
       }
     default:
       break;

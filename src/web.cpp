@@ -14,13 +14,12 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-static const char* TAG         = "web";
-static const char* ap_ssid     = "壮士～且慢";
-static const char* ap_password = "12345678";
-static const int   ap_channel  = 1;
-static bool        webActive   = false;
-
-static int ledBrightness = 20;
+static const char* TAG           = "web";
+static const char* ap_ssid       = "壮士～且慢";
+static const char* ap_password   = "12345678";
+static const int   ap_channel    = 1;
+static bool        webActive     = false;
+static int         ledBrightness = 20;
 
 WebServer server(80);
 
@@ -47,7 +46,10 @@ const char* getModeName(ControlMode mode) {
   }
 }
 
-// ---------- HTML 页面 ----------
+// HTML 页面（只展示步进电机卡片的新增部分，完整页面太长，但在这里使用原有 HTML 并加入新增元素）
+// 您需要将原来的 index_html 字符串中的步进电机卡片替换为包含以下新增行的版本。
+// 为节约篇幅，我提供一个“增量修改”说明：在步进电机卡片中增加三行。实际您将原有 HTML 中的对应卡片块替换为下面带注释的版本即可。
+// 因为 HTML 非常长，我直接给出完整的 index_html（包含新增故障显示和按钮）的内容。您直接替换原字符串即可。
 const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html>
@@ -105,13 +107,18 @@ const char index_html[] PROGMEM = R"rawliteral(
             <div class="row">LED亮度: <input type="range" id="ledSlider" min="0" max="255" value="20"> <span id="ledVal">20</span></div>
         </div>
 
-        <!-- 步进电机高级设置 -->
+        <!-- 步进电机高级设置（新增故障显示和清除按钮） -->
         <div class="card">
             <h2>⚙️ 步进电机设置</h2>
             <div class="row">SG负载值: <span id="sgResult">0</span></div>
             <div class="row">实时电流: <span id="stepRealCurrent">0</span> mA</div>
             <div class="row">设定电流: <input type="range" id="stepCurrentSlider" min="0" max="2000" value="2000"> <span id="stepCurrentVal">2000</span> mA</div>
             <div class="row">模式: <span id="stepModeStatus">静音模式</span> <button id="toggleModeBtn">切换</button></div>
+            <div class="row">步进故障: <span id="stepperFaultDisplay">无</span></div>
+            <div class="row">
+                <button id="clearFaultBtn">清除故障</button>
+                <button id="reinitBtn">完全复位</button>
+            </div>
         </div>
 
         <!-- 故障状态 -->
@@ -130,6 +137,8 @@ const char index_html[] PROGMEM = R"rawliteral(
     const stepCurrentSlider = document.getElementById('stepCurrentSlider');
     const stepCurrentVal = document.getElementById('stepCurrentVal');
     const toggleModeBtn = document.getElementById('toggleModeBtn');
+    const clearFaultBtn = document.getElementById('clearFaultBtn');
+    const reinitBtn = document.getElementById('reinitBtn');
 
     ledSlider.oninput = function() {
         let val = this.value;
@@ -147,6 +156,14 @@ const char index_html[] PROGMEM = R"rawliteral(
         let currentMode = document.getElementById('stepModeStatus').innerText === '静音模式' ? 1 : 0;
         let newMode = currentMode ? 0 : 1;
         fetch('/setStealthMode?mode=' + newMode).then(() => fetchData());
+    };
+
+    clearFaultBtn.onclick = function() {
+        fetch('/clearStepperFault').then(() => fetchData());
+    };
+
+    reinitBtn.onclick = function() {
+        fetch('/reinitStepper').then(() => fetchData());
     };
 
     function fetchData() {
@@ -170,13 +187,12 @@ const char index_html[] PROGMEM = R"rawliteral(
                 document.getElementById('stepperSpeed').innerText = data.stepperSpeed;
                 ledSlider.value = data.ledBrightness;
                 ledVal.innerText = data.ledBrightness;
-                // 步进电机数据
                 document.getElementById('sgResult').innerText = data.sg_result;
                 document.getElementById('stepRealCurrent').innerText = data.step_real_current;
                 stepCurrentSlider.value = data.step_current_setting;
                 stepCurrentVal.innerText = data.step_current_setting;
                 document.getElementById('stepModeStatus').innerText = data.step_stealth_mode ? "静音模式" : "高速模式";
-                // 故障显示
+                document.getElementById('stepperFaultDisplay').innerText = data.stepperFaultType;
                 const faultH = document.getElementById('faultH');
                 faultH.innerHTML = data.isH_BridgeFault ? '<span class="fault">故障</span>' : '<span class="ok">正常</span>';
                 const choppingSpan = document.getElementById('chopping');
@@ -195,7 +211,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 </html>
 )rawliteral";
 
-// ---------- 路由处理 ----------
+// 路由处理 ----------------------------------------------------
 void handleRoot() {
   server.send(200, "text/html", index_html);
 }
@@ -212,7 +228,6 @@ void handleData() {
   bool    fanChanState = getFanChanState();
   uint8_t stepperSpeed = getStepSpeed();
 
-  // 脚控数据（使用互斥锁）
   float vPad_mv, vPad_percentage, temp_footPadMCU;
   taskENTER_CRITICAL(&esp_now_Mux);
   vPad_mv         = FootPadData.batVoltage;
@@ -220,13 +235,11 @@ void handleData() {
   temp_footPadMCU = FootPadData.footPadChipTemp;
   taskEXIT_CRITICAL(&esp_now_Mux);
 
-  // 故障标志
   bool isH_BridgeFault_val = isH_BridgeFault;
   bool isChopping_val      = isChopping;
   bool isStepperFault_val  = isStepperFault;
   bool isDrv8872Fault_val  = false;
 
-  // 控制状态
   ControlMode mode     = getCurrentCtrlMode();
   String      modeName = getModeName(mode);
   String      motorSpeedStr;
@@ -244,13 +257,33 @@ void handleData() {
     motorSpeedStr = "停止";
   }
 
-  // 步进电机额外数据
   uint16_t sg_result            = getSG_RESULT();
   uint16_t step_real_current    = getStepCurrent();
   bool     step_stealth_mode    = getStealthChopMode();
   uint16_t step_current_setting = getStepCurrentSetting();
 
-  // 构建 JSON
+  // 步进故障类型转字符串
+  String stepperFaultStr;
+  switch (stepperFaultType) {
+  case STEPPER_FAULT_NONE:
+    stepperFaultStr = "无";
+    break;
+  case STEPPER_FAULT_OVERTEMP:
+    stepperFaultStr = "过热";
+    break;
+  case STEPPER_FAULT_SHORT_CIRCUIT:
+    stepperFaultStr = "短路";
+    break;
+  case STEPPER_FAULT_UV_CP:
+    stepperFaultStr = "欠压";
+    break;
+  case STEPPER_FAULT_DRV_ERR_UNKNOWN:
+    stepperFaultStr = "驱动器错误";
+    break;
+  default:
+    stepperFaultStr = "未知";
+  }
+
   String json = "{";
   json += "\"vBus_MV\":" + String(vBus_MV / 1000.0, 1) + ",";
   json += "\"vPad_mv\":" + String(vPad_mv / 1000.0, 1) + ",";
@@ -275,7 +308,8 @@ void handleData() {
   json += "\"sg_result\":" + String(sg_result) + ",";
   json += "\"step_real_current\":" + String(step_real_current) + ",";
   json += "\"step_stealth_mode\":" + String(step_stealth_mode ? 1 : 0) + ",";
-  json += "\"step_current_setting\":" + String(step_current_setting);
+  json += "\"step_current_setting\":" + String(step_current_setting) + ",";
+  json += "\"stepperFaultType\":\"" + stepperFaultStr + "\"";
   json += "}";
 
   server.send(200, "application/json", json);
@@ -315,7 +349,20 @@ void handleSetStealthMode() {
   }
 }
 
-// ---------- 启动/停止服务 ----------
+// 清除 TMC2209 故障标志（不复位其他设置）
+void handleClearStepperFault() {
+  clearTMC2209Fault();
+  server.send(200, "text/plain", "OK");
+}
+
+// 清除 TMC2209 故障并完全复位 TMC2209
+void handleReinitStepper() {
+  clearTMC2209Fault();
+  stepper_init();
+  stepperFaultType = STEPPER_FAULT_NONE;
+  server.send(200, "text/plain", "OK");
+}
+
 void startWeb() {
   if (webActive) return;
   WiFi.mode(WIFI_AP_STA);
@@ -326,6 +373,8 @@ void startWeb() {
   server.on("/setLedBrightness", handleSetLedBrightness);
   server.on("/setStepCurrent", handleSetStepCurrent);
   server.on("/setStealthMode", handleSetStealthMode);
+  server.on("/clearStepperFault", handleClearStepperFault);
+  server.on("/reinitStepper", handleReinitStepper);
   server.begin();
   webActive = true;
   ESP_LOGI(TAG, "启动Web服务器");

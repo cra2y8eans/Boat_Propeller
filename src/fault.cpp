@@ -6,9 +6,10 @@
 #include "motor.h"
 #include "step.h"
 
-static const char* TAG             = "FAULT";
-volatile bool      isH_BridgeFault = false;
-volatile bool      isChopping      = false;
+static const char*          TAG              = "FAULT";
+volatile bool               isH_BridgeFault  = false;
+volatile bool               isChopping       = false;
+volatile StepperFaultType_t stepperFaultType = STEPPER_FAULT_NONE; // 步进电机故障类型，默认无故障
 
 TaskHandle_t faultTaskHandle = NULL;
 
@@ -111,6 +112,14 @@ static uint32_t getModeColor(ControlMode mode) {
   }
 }
 
+// 清除 TMC2209 故障标志
+void clearTMC2209Fault() {
+  stepperEmergencyStop(); // 先紧急停止步进电机，确保安全
+  myStepper.GSTAT(GSTAT_DRV_ERR | GSTAT_UV_CP);
+  stepperFaultType = STEPPER_FAULT_NONE;
+  vTaskDelay(pdMS_TO_TICKS(10)); // 等待50ms，确保故障状态被清除并稳定下
+}
+
 void fault_init() {
   pinMode(H_BridgeFault_pin, INPUT); // 已外部上拉
   pinMode(chop_pin, INPUT);          // 已外部上拉
@@ -120,6 +129,39 @@ void fault_init() {
   attachInterrupt(digitalPinToInterrupt(H_BridgeFault_pin), H_BridgeFault_ISR, CHANGE);
   attachInterrupt(digitalPinToInterrupt(stepperFault_pin), stepperFault_ISR, CHANGE);
   attachInterrupt(digitalPinToInterrupt(alertPin), INA226Fault_ISR, CHANGE);
+}
+
+/**
+ * @brief 诊断 TMC2209 故障（通过 UART 读取寄存器）
+ * @note  忽略复位标志（GSTAT_RESET），因为 FastAccelStepper 会频繁复位 TMC2209 来实现无声启动
+ *        这会导致 GSTAT_RESET 位频繁被置位，可能会误判为严重故障。
+ * @return true  表示存在严重故障（过热、短路等）
+ * @return false 表示无严重故障或仅有欠压/复位等轻微问题
+ */
+static bool diagnoseTMC2209Fault() {
+  uint8_t gstat   = myStepper.GSTAT();
+  bool    serious = false;
+  // 欠压（电荷泵欠压）
+  if (gstat & GSTAT_UV_CP) {
+    ESP_LOGW(TAG, "TMC2209 欠压 (UV_CP)");
+  }
+  // 驱动器错误（短路/过热）
+  if (gstat & GSTAT_DRV_ERR) {
+    serious = true;
+    ESP_LOGE(TAG, "TMC2209 驱动器错误 (DRV_ERR)");
+    uint32_t drv_status = myStepper.DRV_STATUS();
+    ESP_LOGI(TAG, "DRV_STATUS: 0x%08X", drv_status);
+    // 过热（OT 位）
+    if (drv_status & (1 << 1)) {
+      ESP_LOGE(TAG, "→ 过热 (OT)");
+    }
+    // 短路至地（S2G 位）
+    if (drv_status & (1 << 2)) {
+      ESP_LOGE(TAG, "→ 短路 (S2G)");
+    }
+    // 可以根据数据手册补充其他位，如过流、开路等
+  }
+  return serious;
 }
 
 void fault_task(void* pvParameters) {
@@ -145,6 +187,7 @@ void fault_task(void* pvParameters) {
       break;
     case TMC2209_FAULT:
       if (isStepperFault) {
+        diagnoseTMC2209Fault(); // 进一步诊断故障类型（过热、短路等）
         ESP_LOGE(TAG, "TMC2209报错!");
         stepperEmergencyStop();
         buzzer(3, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
@@ -177,6 +220,23 @@ void fault_task(void* pvParameters) {
       }
     default:
       break;
+    }
+  }
+}
+
+void onChopping(bool enable) {
+  if (enable) {
+    isChopping = digitalRead(chop_pin) == LOW;
+    if (isChopping) {
+      ESP_LOGW(TAG, "电流斩波触发，正在限流...");
+      ledSetMode(sysRGB, LED_BLINK, COLOR_WHITE, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL); // 斩波触发时，系统灯闪烁白色
+    } else {
+      // 斩波未触发时的处理
+      if (isFootPadOnline) {
+        ledSetMode(sysRGB, LED_ON, COLOR_BLUE, 0, 0);
+      } else {
+        ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
+      };
     }
   }
 }

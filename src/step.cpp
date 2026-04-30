@@ -10,7 +10,7 @@
 
 static portMUX_TYPE  step_Mux = portMUX_INITIALIZER_UNLOCKED;
 static const char*   TAG      = "stepper";
-static const uint8_t enPin    = 35,
+static const uint8_t enPin    = 35,  // 步进电机使能引脚，外部下拉
                      dirPin   = 14,
                      stepPin  = 47,
                      rxPin    = 39,
@@ -141,3 +141,4 @@ void stepper_control_task(void* pvParameter) {
     vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }
 }
+

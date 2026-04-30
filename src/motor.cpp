@@ -186,6 +186,7 @@ void motorControl(void* pvParameters) {
     switch (current_ctrl_mode) {
     case FOOT_MODE: { // motor_move为真时运转
       handleMotorRamp(motor_move, target_speed, dirReverse);
+      onChopping(motor_move); // 根据是否运转来判断是否需要限流
       break;
     }
     case CRUISE_MODE: { // motor_move为假时运转（即默认转，踩下停止）

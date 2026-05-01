@@ -46,10 +46,7 @@ const char* getModeName(ControlMode mode) {
   }
 }
 
-// HTML 页面（只展示步进电机卡片的新增部分，完整页面太长，但在这里使用原有 HTML 并加入新增元素）
-// 您需要将原来的 index_html 字符串中的步进电机卡片替换为包含以下新增行的版本。
-// 为节约篇幅，我提供一个“增量修改”说明：在步进电机卡片中增加三行。实际您将原有 HTML 中的对应卡片块替换为下面带注释的版本即可。
-// 因为 HTML 非常长，我直接给出完整的 index_html（包含新增故障显示和按钮）的内容。您直接替换原字符串即可。
+// HTML 页面（已删除 DRV8872 故障，步进电机故障及按钮移至故障卡片底部）
 const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html>
@@ -107,27 +104,26 @@ const char index_html[] PROGMEM = R"rawliteral(
             <div class="row">LED亮度: <input type="range" id="ledSlider" min="0" max="255" value="20"> <span id="ledVal">20</span></div>
         </div>
 
-        <!-- 步进电机高级设置（新增故障显示和清除按钮） -->
+        <!-- 步进电机高级设置（仅保留SG、电流、模式） -->
         <div class="card">
             <h2>⚙️ 步进电机设置</h2>
             <div class="row">SG负载值: <span id="sgResult">0</span></div>
             <div class="row">实时电流: <span id="stepRealCurrent">0</span> mA</div>
             <div class="row">设定电流: <input type="range" id="stepCurrentSlider" min="0" max="2000" value="2000"> <span id="stepCurrentVal">2000</span> mA</div>
             <div class="row">模式: <span id="stepModeStatus">静音模式</span> <button id="toggleModeBtn">切换</button></div>
-            <div class="row">步进故障: <span id="stepperFaultDisplay">无</span></div>
-            <div class="row">
-                <button id="clearFaultBtn">清除故障</button>
-                <button id="reinitBtn">完全复位</button>
-            </div>
         </div>
 
-        <!-- 故障状态 -->
+        <!-- 故障状态（包含步进电机故障及两个操作按钮） -->
         <div class="card">
             <h2>⚠️ 故障状态</h2>
             <div class="row">H桥故障: <span id="faultH">无</span></div>
             <div class="row">斩波: <span id="chopping">--</span></div>
             <div class="row">步进故障: <span id="faultStepper">无</span></div>
-            <div class="row">DRV8872故障: <span id="faultDrv">无</span></div>
+            <div class="row" style="margin-top:8px;">步进故障详情: <span id="stepperFaultDisplay">无</span></div>
+            <div class="row" style="margin-top:8px;">
+                <button id="clearFaultBtn">清除步进故障</button>
+                <button id="reinitBtn">完全复位步进</button>
+            </div>
         </div>
     </div>
 </div>
@@ -199,8 +195,6 @@ const char index_html[] PROGMEM = R"rawliteral(
                 choppingSpan.innerHTML = data.isChopping ? '斩波中' : '未斩波';
                 const faultStepper = document.getElementById('faultStepper');
                 faultStepper.innerHTML = data.isStepperFault ? '<span class="fault">故障</span>' : '<span class="ok">正常</span>';
-                const faultDrv = document.getElementById('faultDrv');
-                faultDrv.innerHTML = data.isDrv8872Fault ? '<span class="fault">故障</span>' : '<span class="ok">正常</span>';
             })
             .catch(err => console.error(err));
     }
@@ -238,7 +232,6 @@ void handleData() {
   bool isH_BridgeFault_val = isH_BridgeFault;
   bool isChopping_val      = isChopping;
   bool isStepperFault_val  = isStepperFault;
-  bool isDrv8872Fault_val  = false;
 
   ControlMode mode     = getCurrentCtrlMode();
   String      modeName = getModeName(mode);
@@ -298,7 +291,6 @@ void handleData() {
   json += "\"isH_BridgeFault\":" + String(isH_BridgeFault_val ? 1 : 0) + ",";
   json += "\"isChopping\":" + String(isChopping_val ? 1 : 0) + ",";
   json += "\"isStepperFault\":" + String(isStepperFault_val ? 1 : 0) + ",";
-  json += "\"isDrv8872Fault\":" + String(isDrv8872Fault_val ? 1 : 0) + ",";
   json += "\"stepperSpeed\":" + String(stepperSpeed) + ",";
   json += "\"fanChanState\":" + String(fanChanState ? 1 : 0) + ",";
   json += "\"fanHeatSpeed\":" + String(fanHeatSpeed) + ",";
@@ -349,13 +341,13 @@ void handleSetStealthMode() {
   }
 }
 
-// 清除 TMC2209 故障标志（不复位其他设置）
+// 清除故障（仅寄存器）
 void handleClearStepperFault() {
   clearTMC2209Fault();
   server.send(200, "text/plain", "OK");
 }
 
-// 清除 TMC2209 故障并完全复位 TMC2209
+// 完全复位步进电机
 void handleReinitStepper() {
   clearTMC2209Fault();
   stepper_init();

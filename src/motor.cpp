@@ -135,7 +135,7 @@ static void handleMotorRamp(bool enable, uint8_t target_pwm, bool target_dir) {
   if (current_speed <= DIR_SWITCH_THRESH) {
     if (target_dir != current_dir) {
       current_dir = target_dir;
-      digitalWrite(dir_pin, current_dir ? LOW : HIGH);
+      digitalWrite(dir_pin, current_dir ? HIGH : LOW);
     }
   }
   // 输出 PWM

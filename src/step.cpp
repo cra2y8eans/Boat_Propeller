@@ -10,8 +10,8 @@
 
 static portMUX_TYPE  step_Mux = portMUX_INITIALIZER_UNLOCKED;
 static const char*   TAG      = "stepper";
-static const uint8_t enPin    = 35,  // 步进电机使能引脚，外部下拉
-                     dirPin   = 14,
+static const uint8_t enPin    = 35, // 步进电机使能引脚，外部下拉
+    dirPin                    = 14,
                      stepPin  = 47,
                      rxPin    = 39,
                      txPin    = 42,
@@ -108,7 +108,7 @@ void stepper_control_task(void* pvParameter) {
     ControlMode mode       = getCurrentCtrlMode();
     bool        turnLeft   = FootPadData.data[0];
     bool        turnRight  = FootPadData.data[1];
-    bool        dirReverse = isAccelButtonLongPressed;
+    bool        dirReverse = isDecelButtonLongPressed;
     taskEXIT_CRITICAL(&step_Mux);
 
     uint8_t speedLevel = getStepSpeed(); // 1~5
@@ -121,24 +121,15 @@ void stepper_control_task(void* pvParameter) {
 
     if (mode != HAND_MODE && !isStepperFault) {
       if (turnLeft && !turnRight) {
-        stepper->runForward();
+        dirReverse ? stepper->runBackward() : stepper->runForward();
       } else if (!turnLeft && turnRight) {
-        stepper->runBackward();
+        dirReverse ? stepper->runForward() : stepper->runBackward();
       } else {
         stepper->stopMove();
       }
     } else {
       stepper->stopMove();
     }
-    // // 如果步进电机发生故障，通过长按减速按钮尝试重新使能来复位驱动器
-    // if (isStepperFault) {
-    //   if (isDecelButtonLongPressed) {
-    //     digitalWrite(enPin, HIGH);
-    //     vTaskDelay(pdMS_TO_TICKS(100));
-    //     digitalWrite(enPin, LOW);
-    //   }
-    // }
     vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }
 }
-

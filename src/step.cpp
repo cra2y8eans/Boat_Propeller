@@ -16,9 +16,9 @@ static const uint8_t enPin    = 35, // 步进电机使能引脚，外部下拉
                      rxPin    = 39,
                      txPin    = 42,
                      indexPin = 21,
-                     uartAddr = 0;
+                     uartAddr = 0,
+                     steps    = 2; // 微步细分
 
-static uint8_t     steps           = 2;    // 微步细分
 static uint16_t    stepCurrent     = 2000; // 默认电流 mA
 static bool        stealthChopMode = true; // true = StealthChop(静音), false = SpreadCycle(高速)
 static const float Rsense          = 0.1;

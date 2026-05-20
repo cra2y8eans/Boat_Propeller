@@ -15,7 +15,7 @@
 
 portMUX_TYPE esp_now_Mux = portMUX_INITIALIZER_UNLOCKED;
 
-esp_now_peer_info_t BoatPropeller;
+static esp_now_peer_info_t BoatPropeller;
 
 static const char*            TAG               = "ESPNOW";
 static const uint16_t         RECV_TIMEOUT      = 500;
@@ -41,7 +41,7 @@ static void OnDataSent(const uint8_t* mac_addr, esp_now_send_status_t status) {
 void esp_now_setup() {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
-  WiFi.setTxPower(WIFI_POWER_8_5dBm); // 设置较低的发射功率以节省电量
+  WiFi.setTxPower(WIFI_POWER_8_5dBm); // 设置较低的发射功率以降低MCU功耗和电磁干扰
   if (esp_now_init() != ESP_OK) {
     ESP_LOGE(TAG, "ESP NOW 初始化失败");
     ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
@@ -75,7 +75,6 @@ void esp_now_connection_check(void* pvParameters) {
   while (1) {
     unsigned long currentTime = millis();
     isFootPadOnline           = (currentTime - lastRecvFromPad <= RECV_TIMEOUT);
-
     // 脚控掉线：只在刚掉线时报警
     if (!isFootPadOnline && foot_last_connection_state) {
       foot_last_connection_state = false;

@@ -53,7 +53,7 @@ void IRAM_ATTR H_BridgeFault_ISR() {
   // 如果有更高优先级的任务，系统会把 xHigherPriorityTaskWoken 设置为 pdTRUE，表示需要切换到该任务
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;                               // 用于中断处理任务切换，如果有更高优先级的任务需要运行，则切换到该任务（系统自动改为pdTRUE）
   isH_BridgeFault                     = digitalRead(H_BridgeFault_pin) == LOW; // 读取引脚状态，更新故障标志位
-  xTaskNotifyFromISR(faultTaskHandle, H_BRIDGE_FAULT, eSetValueWithOverwrite, &xHigherPriorityTaskWoken);
+  xTaskNotifyFromISR(faultTaskHandle, H_BRIDGE_FAULT, eSetValueWithOverwrite, &xHigherPriorityTaskWoken);  // 发送通知给 fault_task，通知值为 H_BRIDGE_FAULT，使用 eSetValueWithOverwrite 模式（如果之前有未处理的通知，会被覆盖），并传入 xHigherPriorityTaskWoken 来指示是否需要切换任务
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken); // 切换任务，如果有更高优先级的任务需要运行，则切换到该任务
 }
 

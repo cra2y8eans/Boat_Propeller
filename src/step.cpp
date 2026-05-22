@@ -104,12 +104,11 @@ void stepper_control_task(void* pvParameter) {
   uint8_t          lastSpeedLevel = 0;
 
   while (1) {
-    taskENTER_CRITICAL(&step_Mux);
-    ControlMode mode       = getCurrentCtrlMode();
-    bool        turnLeft   = FootPadData.data[0];
-    bool        turnRight  = FootPadData.data[1];
-    bool        dirReverse = isDecelButtonLongPressed;
-    taskEXIT_CRITICAL(&step_Mux);
+    RecvFromFootPad_t padData    = getFootPadData();
+    ControlMode       mode       = getCurrentCtrlMode();
+    bool              turnLeft   = padData.data[0];
+    bool              turnRight  = padData.data[1];
+    bool              dirReverse = getDecelLongPressed();
 
     uint8_t speedLevel = getStepSpeed(); // 1~5
     if (speedLevel != lastSpeedLevel && stepper) {

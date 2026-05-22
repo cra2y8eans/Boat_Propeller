@@ -15,23 +15,23 @@
 #define PWM_MIN_DUTY 50          // 最小档位对应的PWM值（1档）
 #define PWM_MAX_DUTY 255         // 最大档位对应的PWM值（5档/3档）
 
-static portMUX_TYPE   motor_mutex       = portMUX_INITIALIZER_UNLOCKED;
-static portMUX_TYPE   footpad_mutex     = portMUX_INITIALIZER_UNLOCKED; // 定义临界区变量
-static const char*    TAG               = "motor";                      // 日志标签
-static const uint8_t  on_foot_pin       = 1;                            // 模式引脚
-static const uint8_t  on_hand_pin       = 2;                            // 模式引脚
-static const uint8_t  motor_pin         = 9;                            // 电机引脚
-static const uint8_t  dir_pin           = 18;                           // 转向引脚
-static const uint8_t  sleepPin          = 16;                           // 睡眠引脚
-static const uint8_t  motor_channel     = 4;                            // 电机PWM通道
-static const uint8_t  resolution        = 8;                            // 电机PWM精度
-static const uint16_t frequency         = 15000;                        // 电机频率
-static int            target_speed      = 0;                            // 目标速度
-static int            current_speed     = 0;                            // 当前速度
-static bool           motor_move        = false;                        // 电机是否移动标志位
-static bool           current_dir       = false;                        // 当前方向标志位，代表当前电机旋转方向，用来跟之前的作比较
-static ControlMode    current_ctrl_mode = STANDBY_MODE;                 // 默认为待机模式
-static ControlMode    last_ctrl_mode    = STANDBY_MODE;                 // 默认为待机模式
+static portMUX_TYPE motor_mutex = portMUX_INITIALIZER_UNLOCKED;
+
+static const char*    TAG               = "motor";      // 日志标签
+static const uint8_t  on_foot_pin       = 1;            // 模式引脚
+static const uint8_t  on_hand_pin       = 2;            // 模式引脚
+static const uint8_t  motor_pin         = 9;            // 电机引脚
+static const uint8_t  dir_pin           = 18;           // 转向引脚
+static const uint8_t  sleepPin          = 16;           // 睡眠引脚
+static const uint8_t  motor_channel     = 4;            // 电机PWM通道
+static const uint8_t  resolution        = 8;            // 电机PWM精度
+static const uint16_t frequency         = 15000;        // 电机频率
+static int            target_speed      = 0;            // 目标速度
+static int            current_speed     = 0;            // 当前速度
+static bool           motor_move        = false;        // 电机是否移动标志位
+static bool           current_dir       = false;        // 当前方向标志位，代表当前电机旋转方向，用来跟之前的作比较
+static ControlMode    current_ctrl_mode = STANDBY_MODE; // 默认为待机模式
+static ControlMode    last_ctrl_mode    = STANDBY_MODE; // 默认为待机模式
 
 TaskHandle_t modeHandle = NULL;
 
@@ -177,20 +177,26 @@ void motorControl(void* pvParameters) {
       vTaskDelayUntil(&xLastWakeTime, xPeriod);
       continue;
     }
-    bool dirReverse;
-    taskENTER_CRITICAL(&footpad_mutex);
-    target_speed = map(FootPadData.speed, 0, 4095, 0, 255);
-    motor_move   = FootPadData.data[2];
-    dirReverse   = FootPadData.data[3]; // 反向
-    taskEXIT_CRITICAL(&footpad_mutex);
+
+    RecvFromFootPad_t data       = getFootPadData(); // 获取脚控数据
+    bool              dirReverse = data.data[3];
+    target_speed                 = map(data.speed, 0, 4095, 0, 255);
+    motor_move                   = data.data[2];
+
+    bool hasFault = isH_BridgeFault || isStepperFault || isINA226Fault || isChopping;
+    if (!hasFault && isFootPadOnline) {
+      dirReverse == true ? ledSetMode(sysRGB, LED_ON, COLOR_GREEN, 0, 0) : ledSetMode(sysRGB, LED_ON, COLOR_BLUE, 0, 0); // 根据方向显示不同颜色，蓝色正转，紫色反转
+    }
+
     switch (current_ctrl_mode) {
     case FOOT_MODE: { // motor_move为真时运转
       handleMotorRamp(motor_move, target_speed, dirReverse);
-      onChopping(motor_move); // 根据是否运转来判断是否需要限流
+      onChopping(motor_move); // 根据是否运转来判断是否需要提示限流
       break;
     }
     case CRUISE_MODE: { // motor_move为假时运转（即默认转，踩下停止）
       handleMotorRamp(!motor_move, target_speed, dirReverse);
+      onChopping(motor_move); // 根据是否运转来判断是否需要提示限流
       break;
     }
     case HAND_MODE: {
@@ -221,6 +227,7 @@ void motorControl(void* pvParameters) {
         target_dir        = true; // 反转方向
       }
       handleMotorRamp(enable, target_pwm, target_dir);
+      onChopping(enable); // 根据是否运转来判断是否需要提示限流
       break;
     }
     case STANDBY_MODE:             // 待机模式：电机不转，步进电机也不工作

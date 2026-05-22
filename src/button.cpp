@@ -7,7 +7,7 @@
 
 #define LONG_PRESS_DEBOUNCE_MS 800
 
-portMUX_TYPE speedMutex = portMUX_INITIALIZER_UNLOCKED;
+static portMUX_TYPE speedMutex = portMUX_INITIALIZER_UNLOCKED;
 
 static const char*   TAG                      = "button";
 static const uint8_t ACCEL_BUTTON_PIN         = 40;
@@ -33,6 +33,22 @@ int8_t getMotorSpeed() {
   local_speed = motorSpeed;
   taskEXIT_CRITICAL(&speedMutex);
   return local_speed;
+}
+
+bool getAccelLongPressed() {
+  bool local_state;
+  taskENTER_CRITICAL(&speedMutex);
+  local_state = isAccelButtonLongPressed;
+  taskEXIT_CRITICAL(&speedMutex);
+  return local_state;
+}
+
+bool getDecelLongPressed() {
+  bool local_state;
+  taskENTER_CRITICAL(&speedMutex);
+  local_state = isDecelButtonLongPressed;
+  taskEXIT_CRITICAL(&speedMutex);
+  return local_state;
 }
 
 // 短按回调
@@ -75,11 +91,15 @@ static void decelButtonShortPressed() { // 减速
 
 // 长按回调
 static void accelButtonLongPressed() { // 加速
+  taskENTER_CRITICAL(&speedMutex);
   isAccelButtonLongPressed = !isAccelButtonLongPressed;
+  taskEXIT_CRITICAL(&speedMutex);
   buzzer(1, LONG_BEEP_DURATION, 0);
 }
 static void decelButtonLongPressed() { // 减速
+  taskENTER_CRITICAL(&speedMutex);
   isDecelButtonLongPressed = !isDecelButtonLongPressed;
+  taskEXIT_CRITICAL(&speedMutex);
   buzzer(1, LONG_BEEP_DURATION, 0);
 }
 
@@ -101,3 +121,4 @@ void buttonTask(void* pvParameters) {
     vTaskDelay(pdMS_TO_TICKS(50));
   }
 }
+

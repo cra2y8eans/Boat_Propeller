@@ -22,6 +22,8 @@ extern volatile bool isAccelButtonLongPressed;
 extern volatile bool isDecelButtonLongPressed;
 
 void    buttonInit();
+void    buttonTask(void* pvParameters);
+bool    getAccelLongPressed();
+bool    getDecelLongPressed();
 int8_t  getMotorSpeed();
 uint8_t getStepSpeed();
-void    buttonTask(void* pvParameters);

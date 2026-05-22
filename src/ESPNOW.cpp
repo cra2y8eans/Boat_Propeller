@@ -24,15 +24,15 @@ static const uint8_t          FootPadMacAddr[6] = { 0x9c, 0x13, 0x9e, 0x52, 0x6e
 static volatile unsigned long lastRecvFromPad   = 0;
 volatile bool                 isFootPadOnline   = false;
 
-volatile RecvFromFootPad_t FootPadData; // 接收来自脚控的数据
+static RecvFromFootPad_t FootPadData; // 接收来自脚控的数据
 
 // 接收回调
 static void OnDataRecv(const uint8_t* mac, const uint8_t* data, int len) {
   taskENTER_CRITICAL(&esp_now_Mux);
   memcpy((void*)&FootPadData, data, sizeof(FootPadData));
   isFootPadOnline = true;
-  taskEXIT_CRITICAL(&esp_now_Mux);
   lastRecvFromPad = millis();
+  taskEXIT_CRITICAL(&esp_now_Mux);
 }
 
 // 发送回调
@@ -57,7 +57,6 @@ void esp_now_setup() {
   // 添加脚控对等节点
   memcpy(BoatPropeller.peer_addr, FootPadMacAddr, 6);
   esp_now_add_peer(&BoatPropeller);
-  ledSetMode(sysRGB, LED_BLINK, COLOR_YELLOW, LONG_FLASH_DURATION, LONG_FLASH_INTERVAL); // 闪黄灯，等待连接
 }
 
 /**  ESPNOW连接检查任务
@@ -86,7 +85,6 @@ void esp_now_connection_check(void* pvParameters) {
     // 脚控重连：只在刚重连时报警
     else if (isFootPadOnline && !foot_last_connection_state) {
       foot_last_connection_state = true;
-      ledSetMode(sysRGB, LED_ON, COLOR_BLUE, 0, 0);
       buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
     }
     // 脚控一直掉线：间隔性提醒
@@ -108,4 +106,11 @@ void dataSent(void* pvParameters) {
     }
     vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }
+}
+
+RecvFromFootPad_t getFootPadData() {
+  taskENTER_CRITICAL(&esp_now_Mux);
+  RecvFromFootPad_t data = FootPadData;
+  taskEXIT_CRITICAL(&esp_now_Mux);
+  return data;
 }

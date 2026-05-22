@@ -121,8 +121,7 @@ void Fan_task(void* pvParameters) {
 
     // 3. 统一报警
     if (all_max >= ALARM_TEMP) {
-      buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-      ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
+      buzzer(3, LONG_BEEP_DURATION, SHORT_BEEP_INTERVAL);
       ESP_LOGE(TAG, "设备过热，请检查 (%.1f°C)", all_max);
     }
 

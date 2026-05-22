@@ -19,3 +19,4 @@ extern volatile bool isDebugDeviceOnline, isFootPadOnline;
 void esp_now_setup();
 void esp_now_connection_check(void* pvParameters);
 void dataSent(void* pvParameters);
+RecvFromFootPad_t getFootPadData();

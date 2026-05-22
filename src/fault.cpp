@@ -51,10 +51,10 @@ void IRAM_ATTR H_BridgeFault_ISR() {
   // 所以我们需要使用 xHigherPriorityTaskWoken 来指示是否需要切换任务
   // 先假设没有更高优先级的任务，所以把 xHigherPriorityTaskWoken 初始化为 pdFALSE
   // 如果有更高优先级的任务，系统会把 xHigherPriorityTaskWoken 设置为 pdTRUE，表示需要切换到该任务
-  BaseType_t xHigherPriorityTaskWoken = pdFALSE;                               // 用于中断处理任务切换，如果有更高优先级的任务需要运行，则切换到该任务（系统自动改为pdTRUE）
-  isH_BridgeFault                     = digitalRead(H_BridgeFault_pin) == LOW; // 读取引脚状态，更新故障标志位
-  xTaskNotifyFromISR(faultTaskHandle, H_BRIDGE_FAULT, eSetValueWithOverwrite, &xHigherPriorityTaskWoken);  // 发送通知给 fault_task，通知值为 H_BRIDGE_FAULT，使用 eSetValueWithOverwrite 模式（如果之前有未处理的通知，会被覆盖），并传入 xHigherPriorityTaskWoken 来指示是否需要切换任务
-  portYIELD_FROM_ISR(xHigherPriorityTaskWoken); // 切换任务，如果有更高优先级的任务需要运行，则切换到该任务
+  BaseType_t xHigherPriorityTaskWoken = pdFALSE;                                                          // 用于中断处理任务切换，如果有更高优先级的任务需要运行，则切换到该任务（系统自动改为pdTRUE）
+  isH_BridgeFault                     = digitalRead(H_BridgeFault_pin) == LOW;                            // 读取引脚状态，更新故障标志位
+  xTaskNotifyFromISR(faultTaskHandle, H_BRIDGE_FAULT, eSetValueWithOverwrite, &xHigherPriorityTaskWoken); // 发送通知给 fault_task，通知值为 H_BRIDGE_FAULT，使用 eSetValueWithOverwrite 模式（如果之前有未处理的通知，会被覆盖），并传入 xHigherPriorityTaskWoken 来指示是否需要切换任务
+  portYIELD_FROM_ISR(xHigherPriorityTaskWoken);                                                           // 切换任务，如果有更高优先级的任务需要运行，则切换到该任务
 }
 
 /** TMC2209故障引脚 DIAG
@@ -195,12 +195,6 @@ void fault_task(void* pvParameters) {
       } else {
         ESP_LOGI(TAG, "TMC2209故障已清除");
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        // 故障清除后恢复模式灯
-        if (isFootPadOnline) {
-          ledSetMode(sysRGB, LED_ON, COLOR_BLUE, 0, 0);
-        } else {
-          ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
-        }
       }
       break;
     case INA226_FAULT:
@@ -211,12 +205,6 @@ void fault_task(void* pvParameters) {
       } else {
         ESP_LOGI(TAG, "INA226故障已清除");
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        // 故障清除后恢复模式灯
-        if (isFootPadOnline) {
-          ledSetMode(sysRGB, LED_ON, COLOR_BLUE, 0, 0);
-        } else {
-          ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
-        }
       }
     default:
       break;
@@ -230,13 +218,6 @@ void onChopping(bool enable) {
     if (isChopping) {
       ESP_LOGW(TAG, "电流斩波触发，正在限流...");
       ledSetMode(sysRGB, LED_BLINK, COLOR_WHITE, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL); // 斩波触发时，系统灯闪烁白色
-    } else {
-      // 斩波未触发时的处理
-      if (isFootPadOnline) {
-        ledSetMode(sysRGB, LED_ON, COLOR_BLUE, 0, 0);
-      } else {
-        ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
-      };
     }
   }
 }

@@ -14,8 +14,8 @@ static const uint8_t ACCEL_BUTTON_PIN         = 40;
 static const uint8_t DECEL_BUTTON_PIN         = 41;
 static uint8_t       stepSpeed                = 3;     // 当前步进电机转速，范围1~5，默认5档
 static int8_t        motorSpeed               = 0;     // 当前电机档位，正数表示前进，负数表示后退
-volatile bool        isAccelButtonLongPressed = false; // 加速按钮长按标志位
-volatile bool        isDecelButtonLongPressed = false; // 减速按钮长按标志位
+static bool          isAccelButtonLongPressed = false; // 加速按钮长按标志位
+static bool          isDecelButtonLongPressed = false; // 减速按钮长按标志位
 
 static OneButton accelButton, decelButton;
 
@@ -121,4 +121,3 @@ void buttonTask(void* pvParameters) {
     vTaskDelay(pdMS_TO_TICKS(50));
   }
 }
-

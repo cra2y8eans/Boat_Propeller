@@ -13,8 +13,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-portMUX_TYPE esp_now_Mux = portMUX_INITIALIZER_UNLOCKED;
-
+static portMUX_TYPE        esp_now_Mux = portMUX_INITIALIZER_UNLOCKED;
 static esp_now_peer_info_t BoatPropeller;
 
 static const char*    TAG          = "ESPNOW";

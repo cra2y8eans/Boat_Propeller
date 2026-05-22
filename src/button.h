@@ -18,9 +18,6 @@
 #define BUTTON_EVENT_SHORT_PRESS 1
 #define BUTTON_EVENT_LONG_PRESS 2
 
-extern volatile bool isAccelButtonLongPressed;
-extern volatile bool isDecelButtonLongPressed;
-
 void    buttonInit();
 void    buttonTask(void* pvParameters);
 bool    getAccelLongPressed();

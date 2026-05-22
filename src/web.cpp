@@ -222,12 +222,12 @@ void handleData() {
   bool    fanChanState = getFanChanState();
   uint8_t stepperSpeed = getStepSpeed();
 
+  static RecvFromFootPad_t FootPadData;
+  FootPadData = getFootPadData();
   float vPad_mv, vPad_percentage, temp_footPadMCU;
-  taskENTER_CRITICAL(&esp_now_Mux);
   vPad_mv         = FootPadData.batVoltage;
   vPad_percentage = FootPadData.batPercentage;
   temp_footPadMCU = FootPadData.footPadChipTemp;
-  taskEXIT_CRITICAL(&esp_now_Mux);
 
   bool isH_BridgeFault_val = isH_BridgeFault;
   bool isChopping_val      = isChopping;

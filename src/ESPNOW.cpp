@@ -19,7 +19,8 @@ esp_now_peer_info_t BoatPropeller;
 
 static const char*            TAG               = "ESPNOW";
 static const uint16_t         RECV_TIMEOUT      = 500;
-static const uint8_t          FootPadMacAddr[6] = { 0x08, 0xa6, 0xf7, 0x1b, 0xb2, 0xcc }; // footpad ???  08:a6:f7:1b:b2:cc
+// static const uint8_t          FootPadMacAddr[6] = { 0x08, 0xa6, 0xf7, 0x1b, 0xb2, 0xcc }; // footpad ???  08:a6:f7:1b:b2:cc
+static const uint8_t          FootPadMacAddr[6] = { 0x9c, 0x13, 0x9e, 0x52, 0x6e, 0x80 }; // ESP32C3（双2812）
 static volatile unsigned long lastRecvFromPad   = 0;
 volatile bool                 isFootPadOnline   = false;
 

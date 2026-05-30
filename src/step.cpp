@@ -8,6 +8,8 @@
 #include "freertos/task.h"
 #include "motor.h"
 
+#define GEAR_RATIO 4
+
 static portMUX_TYPE  step_Mux = portMUX_INITIALIZER_UNLOCKED;
 static const char*   TAG      = "stepper";
 static const uint8_t enPin    = 35, // 步进电机使能引脚，外部下拉
@@ -62,7 +64,7 @@ uint16_t getStepCurrentSetting() {
 // 速度档位映射为频率 (Hz)
 static uint32_t speedLevelToHz(uint8_t level) {
   // 1档最慢，5档最快，范围可调
-  return level * 60; // 60,120,180,240,300 Hz
+  return level * 60 * GEAR_RATIO; // 60,120,180,240,300 Hz
 }
 void stepperEmergencyStop() {
   stepper->stopMove();
@@ -81,7 +83,6 @@ void stepper_init() {
   myStepper.en_spreadCycle(!stealthChopMode); // 默认静音模式
   myStepper.SGTHRS(0);                        // 关闭 StallGuard 阈值
   myStepper.TCOOLTHRS(0);                     // 关闭 StallGuard 阈值
-  // myStepper.TCOOLTHRS(0xFFFFF);               // 启用所有速度下的 StallGuard
   ESP_LOGI(TAG, "TMC2209 初始化完成");
 
   TMC2209engine.init();
@@ -91,7 +92,7 @@ void stepper_init() {
     stepper->setEnablePin(enPin);
     stepper->setAutoEnable(true);             // 是否自动使能
     stepper->setSpeedInHz(speedLevelToHz(3)); // 设置转速，默认3档。单位HZ，计算的是一个完整周期的时间
-    stepper->setAcceleration(800);            // 缓启缓停，设置加减速度（步/秒²），用于 moveTo / move 模式下的加减速
+    stepper->setAcceleration(1500);           // 缓启缓停，设置加减速度（步/秒²），用于 moveTo / move 模式下的加减速
     stepper->setDelayToEnable(50);            // 延迟使能，单位 ms
     stepper->setDelayToDisable(30 * 1000);    // 延迟禁用使能，单位 ms
     ESP_LOGI(TAG, "FastAccelStepper 初始化完成");

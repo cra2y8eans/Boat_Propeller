@@ -83,6 +83,7 @@ void stepper_init() {
   myStepper.en_spreadCycle(!stealthChopMode); // 默认静音模式
   myStepper.SGTHRS(0);                        // 关闭 StallGuard 阈值
   myStepper.TCOOLTHRS(0);                     // 关闭 StallGuard 阈值
+  // myStepper.TCOOLTHRS(0xFFFFF);               // 启用所有速度下的 StallGuard
   ESP_LOGI(TAG, "TMC2209 初始化完成");
 
   TMC2209engine.init();

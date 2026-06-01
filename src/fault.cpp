@@ -251,16 +251,6 @@ void onChopping(bool enable) {
     if (isChopping) {
       ESP_LOGW(TAG, "电流斩波触发，正在限流...");
       ledSetMode(sysRGB, LED_BLINK, COLOR_WHITE, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL); // 斩波触发时，系统灯闪烁白色
-    } else {
-      // 斩波未触发时的处理
-      if (isFootPadOnline) {
-        RecvFromFootPad_t recvData = getFootPadData(); // 获取脚控数据
-        if (recvData.data[3]) {
-          ledSetMode(sysRGB, LED_ON, COLOR_BLUE, 0, 0);
-        } else {
-          ledSetMode(sysRGB, LED_ON, COLOR_GREEN, 0, 0);
-        }
-      }
     }
   }
 }

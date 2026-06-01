@@ -11,7 +11,7 @@ struct RecvFromFootPad_t {
   bool     data[4] = { }; // 0、左转，1、右转，2、电推，3、功能
   float    batVoltage, batPercentage, footPadChipTemp;
 };
-extern volatile RecvFromFootPad_t FootPadData;
+
 // 定义临界区变量
 extern portMUX_TYPE  esp_now_Mux;
 extern volatile bool isDebugDeviceOnline, isFootPadOnline;
@@ -19,3 +19,4 @@ extern volatile bool isDebugDeviceOnline, isFootPadOnline;
 void esp_now_setup();
 void esp_now_connection_check(void* pvParameters);
 void dataSent(void* pvParameters);
+RecvFromFootPad_t getFootPadData();

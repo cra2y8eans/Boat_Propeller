@@ -205,7 +205,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 </html>
 )rawliteral";
 
-// 路由处理 
+// 路由处理
 void handleRoot() {
   server.send(200, "text/html", index_html);
 }
@@ -222,12 +222,11 @@ void handleData() {
   bool    fanChanState = getFanChanState();
   uint8_t stepperSpeed = getStepSpeed();
 
-  float vPad_mv, vPad_percentage, temp_footPadMCU;
-  taskENTER_CRITICAL(&esp_now_Mux);
-  vPad_mv         = FootPadData.batVoltage;
-  vPad_percentage = FootPadData.batPercentage;
-  temp_footPadMCU = FootPadData.footPadChipTemp;
-  taskEXIT_CRITICAL(&esp_now_Mux);
+  float             vPad_mv, vPad_percentage, temp_footPadMCU;
+  RecvFromFootPad_t recvData = getFootPadData(); // 获取脚控数据
+  vPad_mv                    = recvData.batVoltage;
+  vPad_percentage            = recvData.batPercentage;
+  temp_footPadMCU            = recvData.footPadChipTemp;
 
   bool isH_BridgeFault_val = isH_BridgeFault;
   bool isChopping_val      = isChopping;

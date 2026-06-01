@@ -177,12 +177,11 @@ void motorControl(void* pvParameters) {
       vTaskDelayUntil(&xLastWakeTime, xPeriod);
       continue;
     }
-    bool dirReverse;
-    taskENTER_CRITICAL(&footpad_mutex);
-    target_speed = map(FootPadData.speed, 0, 4095, 0, 255);
-    motor_move   = FootPadData.data[2];
-    dirReverse   = FootPadData.data[3]; // 反向
-    taskEXIT_CRITICAL(&footpad_mutex);
+    bool              dirReverse;
+    RecvFromFootPad_t recvData = getFootPadData(); // 获取脚控数据
+    target_speed               = map(recvData.speed, 0, 4095, 0, 255);
+    motor_move                 = recvData.data[2];
+    dirReverse                 = recvData.data[3]; // 反向
     switch (current_ctrl_mode) {
     case FOOT_MODE: { // motor_move为真时运转
       handleMotorRamp(motor_move, target_speed, dirReverse);

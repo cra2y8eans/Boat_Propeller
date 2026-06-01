@@ -212,10 +212,13 @@ void fault_task(void* pvParameters) {
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
         // 故障清除后恢复模式灯
         if (isFootPadOnline) {
-          ledSetMode(sysRGB, LED_ON, COLOR_BLUE, 0, 0);
-        } else {
-          ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
-        }
+          RecvFromFootPad_t recvData = getFootPadData(); // 获取脚控数据
+          if (recvData.data[3]) {
+            ledSetMode(sysRGB, LED_ON, COLOR_BLUE, 0, 0);
+          } else {
+            ledSetMode(sysRGB, LED_ON, COLOR_GREEN, 0, 0);
+          }
+        } // 不需要else分支，因为如果脚控不在线，esp_now_connection_check 函数会让系统灯闪烁红色，表示脚控离线状态，此时不应覆盖为其他颜色。
       }
       break;
     case INA226_FAULT:
@@ -228,9 +231,12 @@ void fault_task(void* pvParameters) {
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
         // 故障清除后恢复模式灯
         if (isFootPadOnline) {
-          ledSetMode(sysRGB, LED_ON, COLOR_BLUE, 0, 0);
-        } else {
-          ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
+          RecvFromFootPad_t recvData = getFootPadData(); // 获取脚控数据
+          if (recvData.data[3]) {
+            ledSetMode(sysRGB, LED_ON, COLOR_BLUE, 0, 0);
+          } else {
+            ledSetMode(sysRGB, LED_ON, COLOR_GREEN, 0, 0);
+          }
         }
       }
     default:
@@ -248,10 +254,13 @@ void onChopping(bool enable) {
     } else {
       // 斩波未触发时的处理
       if (isFootPadOnline) {
-        ledSetMode(sysRGB, LED_ON, COLOR_BLUE, 0, 0);
-      } else {
-        ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
-      };
+        RecvFromFootPad_t recvData = getFootPadData(); // 获取脚控数据
+        if (recvData.data[3]) {
+          ledSetMode(sysRGB, LED_ON, COLOR_BLUE, 0, 0);
+        } else {
+          ledSetMode(sysRGB, LED_ON, COLOR_GREEN, 0, 0);
+        }
+      }
     }
   }
 }

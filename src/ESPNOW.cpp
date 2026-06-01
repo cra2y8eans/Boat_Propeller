@@ -85,8 +85,8 @@ void esp_now_connection_check(void* pvParameters) {
     // 脚控重连：只在刚重连时报警
     else if (isFootPadOnline && !foot_last_connection_state) {
       foot_last_connection_state = true;
-      ledSetMode(sysRGB, LED_ON, COLOR_BLUE, 0, 0);
       buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
+      // 重连后由motor_task根据脚控数据设置系统灯颜色，无需在此处设置
     }
     // 脚控一直掉线：间隔性提醒
     else if (!isFootPadOnline && (currentTime - last_disconnect_alert >= DISCONNECT_ALERT_INTERVAL)) {

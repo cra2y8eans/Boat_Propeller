@@ -182,6 +182,13 @@ void motorControl(void* pvParameters) {
     target_speed               = map(recvData.speed, 0, 4095, 0, 255);
     motor_move                 = recvData.data[2];
     dirReverse                 = recvData.data[3]; // 反向
+
+    // sysRGB显示电机旋转方向
+    bool hasFault = isH_BridgeFault || isStepperFault || isINA226Fault;
+    if (!hasFault && isFootPadOnline) {
+      dirReverse == true ? ledSetMode(sysRGB, LED_ON, COLOR_GREEN, 0, 0) : ledSetMode(sysRGB, LED_ON, COLOR_BLUE, 0, 0); // true绿色，false蓝色
+    } // 如果有故障或脚控不在线，系统灯由故障检测或连接检测任务控制，此处不修改系统灯状态
+
     switch (current_ctrl_mode) {
     case FOOT_MODE: { // motor_move为真时运转
       handleMotorRamp(motor_move, target_speed, dirReverse);

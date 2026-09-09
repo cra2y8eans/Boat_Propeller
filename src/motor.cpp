@@ -71,22 +71,22 @@ void modeChangeOperation(ControlMode newMode) {
   switch (newMode) {
   case HAND_MODE: // 手控模式。该模式下电推转速由按钮控制。步进电机不工作。
     ESP_LOGI(TAG, "手控模式");
-    ledSetMode(modeRGB, LED_ON, COLOR_GREEN, 0, 0);
+    // ledSetMode(modeRGB, LED_ON, COLOR_GREEN, 0, 0);
     buzzer(1, SHORT_BEEP_DURATION, 0);
     break;
   case FOOT_MODE: // 脚控模式。该模式下电推转速由脚控控制。按钮可以控制步进电机转速
     ESP_LOGI(TAG, "脚控模式");
-    ledSetMode(modeRGB, LED_ON, COLOR_CYAN, 0, 0);
+    // ledSetMode(modeRGB, LED_ON, COLOR_CYAN, 0, 0);
     buzzer(1, SHORT_BEEP_DURATION, 0);
     break;
   case CRUISE_MODE: // 巡航模式。该模式下电推转速由脚控控制。按钮可以控制步进电机转速
     ESP_LOGI(TAG, "巡航模式");
-    ledSetMode(modeRGB, LED_ON, COLOR_YELLOW, 0, 0);
+    // ledSetMode(modeRGB, LED_ON, COLOR_YELLOW, 0, 0);
     buzzer(1, SHORT_BEEP_DURATION, 0);
     break;
   case STANDBY_MODE:
     ESP_LOGI(TAG, "待机模式");
-    ledSetMode(modeRGB, LED_ON, COLOR_RED, 0, 0);
+    // ledSetMode(modeRGB, LED_ON, COLOR_RED, 0, 0);
     buzzer(1, SHORT_BEEP_DURATION, 0);
     break;
   default:
@@ -183,11 +183,13 @@ void motorControl(void* pvParameters) {
     motor_move                 = recvData.data[2];
     dirReverse                 = recvData.data[3]; // 反向
 
-    // sysRGB显示电机旋转方向
-    bool hasFault = isH_BridgeFault || isStepperFault || isINA226Fault;
-    if (!hasFault && isFootPadOnline) {
-      dirReverse == true ? ledSetMode(sysRGB, LED_ON, COLOR_GREEN, 0, 0) : ledSetMode(sysRGB, LED_ON, COLOR_BLUE, 0, 0); // true绿色，false蓝色
-    } // 如果有故障或脚控不在线，系统灯由故障检测或连接检测任务控制，此处不修改系统灯状态
+    // modeRGB显示电机旋转方向和是否斩波
+    uint32_t baseColor = dirReverse ? COLOR_GREEN : COLOR_BLUE; // 反转=绿，正转=蓝
+    if (!isChopping) {
+      ledSetMode(modeRGB, LED_ON, baseColor, 0, 0);
+    } else {
+      ledSetMode(modeRGB, LED_BLINK, baseColor, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
+    }
 
     switch (current_ctrl_mode) {
     case FOOT_MODE: { // motor_move为真时运转

@@ -99,10 +99,10 @@ void ina226_task(void* pvParameters) {
     shuntVoltage    = ina.getShuntVoltage_mV();
     H_BridgeCurrent = ina.getCurrent();
     power           = ina.getPower();
-    ESP_LOGI(TAG, "busVoltage: %.3f V", busVoltage);
-    ESP_LOGI(TAG, "Shunt Voltage: %.3f mV", shuntVoltage);
-    ESP_LOGI(TAG, "Current: %.3f A\n", H_BridgeCurrent);
-    ESP_LOGI(TAG, "Power: %.3f W\n", power);
+    ESP_LOGI(TAG, "busVoltage: %.3f V", busVoltage);       // 总线电压
+    ESP_LOGI(TAG, "Shunt Voltage: %.3f mV", shuntVoltage); // 检测电阻电压
+    ESP_LOGI(TAG, "Current: %.3f A\n", H_BridgeCurrent);   // 电流
+    ESP_LOGI(TAG, "Power: %.3f W\n", power);               // 功率
     vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }
 }

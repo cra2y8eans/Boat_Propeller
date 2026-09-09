@@ -1,18 +1,3 @@
-/*
-  故障处理
-    通过外部中断检测故障引脚状态变化，使用事件通知机制唤醒任务对H桥、步进电机、INA226故障进行处理。
-    处理流程：
-        1、检测故障引脚状态变化，触发中断处理
-        2、中断处理函数中，根据故障引脚状态更新故障标志位，并使用 xTaskNotifyFromISR 通知任务
-        3、任务处理函数中，根据故障标志位进行处理，如蜂鸣器报警、LED闪烁等
-    sysRGB（系统灯）：
-        - TMC2209故障：红色   闪烁
-        - INA226故障： 黄色   闪烁
-        - 斩波触发：   白色   闪烁
-    modeRGB（模式灯）：
-        - DRV8701故障：红色   闪烁
-*/
-
 #include "fault.h"
 #include "ESPNOW.h"
 #include "buzzer.h"
@@ -191,13 +176,10 @@ void fault_task(void* pvParameters) {
         ESP_LOGE(TAG, "DRV8701报错!");
         motorEmergencyStop(); // 立即停止电机
         buzzer(3, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        ledSetMode(modeRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL); // H桥故障时，模式灯闪烁红色
+        ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL); // H桥故障时，模式灯闪烁红色
       } else {
         ESP_LOGI(TAG, "DRV8701故障已清除");
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        // 故障清除后恢复模式灯
-        ControlMode currentMode = getCurrentCtrlMode();
-        ledSetMode(modeRGB, LED_ON, getModeColor(currentMode), 0, 0);
       }
       break;
     case TMC2209_FAULT:
@@ -210,34 +192,16 @@ void fault_task(void* pvParameters) {
       } else {
         ESP_LOGI(TAG, "TMC2209故障已清除");
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        // 故障清除后恢复模式灯
-        if (isFootPadOnline) {
-          RecvFromFootPad_t recvData = getFootPadData(); // 获取脚控数据
-          if (recvData.data[3]) {
-            ledSetMode(sysRGB, LED_ON, COLOR_BLUE, 0, 0);
-          } else {
-            ledSetMode(sysRGB, LED_ON, COLOR_GREEN, 0, 0);
-          }
-        } // 不需要else分支，因为如果脚控不在线，esp_now_connection_check 函数会让系统灯闪烁红色，表示脚控离线状态，此时不应覆盖为其他颜色。
       }
       break;
     case INA226_FAULT:
       if (isINA226Fault) {
         ESP_LOGE(TAG, "INA226报错!");
         buzzer(3, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        ledSetMode(sysRGB, LED_BLINK, COLOR_YELLOW, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
+        ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
       } else {
         ESP_LOGI(TAG, "INA226故障已清除");
         buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-        // 故障清除后恢复模式灯
-        if (isFootPadOnline) {
-          RecvFromFootPad_t recvData = getFootPadData(); // 获取脚控数据
-          if (recvData.data[3]) {
-            ledSetMode(sysRGB, LED_ON, COLOR_BLUE, 0, 0);
-          } else {
-            ledSetMode(sysRGB, LED_ON, COLOR_GREEN, 0, 0);
-          }
-        }
       }
     default:
       break;
@@ -250,7 +214,6 @@ void onChopping(bool enable) {
     isChopping = digitalRead(chop_pin) == LOW;
     if (isChopping) {
       ESP_LOGW(TAG, "电流斩波触发，正在限流...");
-      ledSetMode(sysRGB, LED_BLINK, COLOR_WHITE, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL); // 斩波触发时，系统灯闪烁白色
     }
   }
 }

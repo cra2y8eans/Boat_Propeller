@@ -3,6 +3,8 @@
 #include "buzzer.h"
 #include "current.h"
 #include "esp_log.h"
+#include "fan.h"
+#include "fault.h"
 #include "led.h"
 #include "motor.h"
 #include <Arduino.h>
@@ -74,11 +76,22 @@ void esp_now_connection_check(void* pvParameters) {
   while (1) {
     unsigned long currentTime = millis();
     isFootPadOnline           = (currentTime - lastRecvFromPad <= RECV_TIMEOUT);
+    bool anyFault             = isH_BridgeFault || isStepperFault || isINA226Fault || isOverHeat;
+
+    if (anyFault) {
+      // 如果有故障，交给 fault_task 处理红色快闪，这里不操作，避免冲突
+      // （fault_task 优先级更高，会持续覆盖，所以这里空着即可）
+    } else if (isFootPadOnline) {
+      // 脚控在线且无故障 -> 绿色常亮
+      ledSetMode(sysRGB, LED_ON, COLOR_GREEN, 0, 0);
+    } else {
+      // 脚控掉线且无故障 -> 黄色慢闪（长闪）
+      ledSetMode(sysRGB, LED_BLINK, COLOR_YELLOW, LONG_FLASH_DURATION, LONG_FLASH_INTERVAL);
+    }
 
     // 脚控掉线：只在刚掉线时报警
     if (!isFootPadOnline && foot_last_connection_state) {
       foot_last_connection_state = false;
-      ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
       buzzer(3, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
       last_disconnect_alert = currentTime;
     }
@@ -90,7 +103,6 @@ void esp_now_connection_check(void* pvParameters) {
     }
     // 脚控一直掉线：间隔性提醒
     else if (!isFootPadOnline && (currentTime - last_disconnect_alert >= DISCONNECT_ALERT_INTERVAL)) {
-      ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
       last_disconnect_alert = currentTime;
     }
     vTaskDelayUntil(&xLastWakeTime, xPeriod);

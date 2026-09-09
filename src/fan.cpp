@@ -28,8 +28,9 @@ static const uint8_t  fan_resolution   = 8;
 // 报警阈值
 #define ALARM_TEMP 80.0f
 
-static int  duty_heat;               // 散热风扇 PWM 占空比
-static bool channelFanState = false; // 通道风扇当前状态
+volatile bool isOverHeat = false;      // 过热标志位，由 Fan_task 任务更新，供其他任务读取
+static int    duty_heat;               // 散热风扇 PWM 占空比
+static bool   channelFanState = false; // 通道风扇当前状态
 
 // 散热风扇控制结构体
 struct HeatFanController {
@@ -122,8 +123,10 @@ void Fan_task(void* pvParameters) {
     // 3. 统一报警
     if (all_max >= ALARM_TEMP) {
       buzzer(1, SHORT_BEEP_DURATION, SHORT_BEEP_INTERVAL);
-      ledSetMode(sysRGB, LED_BLINK, COLOR_RED, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
+      isOverHeat = true;
       ESP_LOGE(TAG, "设备过热，请检查 (%.1f°C)", all_max);
+    } else if (all_max < ALARM_TEMP - 10) { // 温度降到报警阈值以下10度时，清除过热标志位
+      isOverHeat = false;
     }
 
     vTaskDelay(pdMS_TO_TICKS(1000));

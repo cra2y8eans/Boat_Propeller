@@ -20,6 +20,7 @@
 
 extern volatile bool isAccelButtonLongPressed;
 extern volatile bool isDecelButtonLongPressed;
+extern volatile bool motorDirection; // true: forward, false: reverse
 
 void    buttonInit();
 int8_t  getMotorSpeed();

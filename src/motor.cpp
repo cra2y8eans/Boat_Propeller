@@ -10,7 +10,7 @@
 
 #define SPEED_STEP 2             // 每次调整的速度步长，值越大加速越快
 #define SPEED_SCALE_FACTOR 50    // 减速比例系数（用于智能减速），分母，值越小减速越快
-#define DIR_SWITCH_THRESH 20     // 允许切换方向的速度阈值（越小越安全）
+#define DIR_SWITCH_PAUSE_MS 200  // 换向停顿的时间（ms）
 #define SWITCH_DEBOUNCE_DELAY 20 // 按键消抖延时，单位毫秒
 #define PWM_MIN_DUTY 50          // 最小档位对应的PWM值（1档）
 #define PWM_MAX_DUTY 255         // 最大档位对应的PWM值（5档/3档）
@@ -71,22 +71,18 @@ void modeChangeOperation(ControlMode newMode) {
   switch (newMode) {
   case HAND_MODE: // 手控模式。该模式下电推转速由按钮控制。步进电机不工作。
     ESP_LOGI(TAG, "手控模式");
-    // ledSetMode(modeRGB, LED_ON, COLOR_GREEN, 0, 0);
     buzzer(1, SHORT_BEEP_DURATION, 0);
     break;
-  case FOOT_MODE: // 脚控模式。该模式下电推转速由脚控控制。按钮可以控制步进电机转速
+  case FOOT_MODE: // 脚控模式。该模式下电推转速由脚控控制。按钮可以控制电机换相
     ESP_LOGI(TAG, "脚控模式");
-    // ledSetMode(modeRGB, LED_ON, COLOR_CYAN, 0, 0);
     buzzer(1, SHORT_BEEP_DURATION, 0);
     break;
   case CRUISE_MODE: // 巡航模式。该模式下电推转速由脚控控制。按钮可以控制步进电机转速
     ESP_LOGI(TAG, "巡航模式");
-    // ledSetMode(modeRGB, LED_ON, COLOR_YELLOW, 0, 0);
     buzzer(1, SHORT_BEEP_DURATION, 0);
     break;
   case STANDBY_MODE:
     ESP_LOGI(TAG, "待机模式");
-    // ledSetMode(modeRGB, LED_ON, COLOR_RED, 0, 0);
     buzzer(1, SHORT_BEEP_DURATION, 0);
     break;
   default:
@@ -106,20 +102,20 @@ uint8_t getMotorCurrentSpeed() {
   return speed;
 }
 
-// 缓启缓停与方向控制统一处理函数
+// 缓启缓停 + 换向保护 + 换向停顿
 static void handleMotorRamp(bool enable, uint8_t target_pwm, bool target_dir) {
+  uint32_t now = millis(); // 临界区外读取，避免临界区里调用 millis()
   taskENTER_CRITICAL(&motor_mutex);
-  // 速度缓变
-  if (enable) {
-    if (current_speed < target_pwm) {
-      current_speed += SPEED_STEP;
-      if (current_speed > target_pwm) current_speed = target_pwm;
-    } else if (current_speed > target_pwm) {
-      current_speed -= SPEED_STEP;
-      if (current_speed < target_pwm) current_speed = target_pwm;
-    }
-  } else {
-    // 减速部分
+
+  bool needDirSwitch = (target_dir != current_dir);
+
+  // 换向等待状态（函数内 static，保持跨调用）
+  static bool     waitingDirSwitch  = false;
+  static uint32_t dirSwitchWaitTime = 0;
+
+  if (needDirSwitch) {
+    // ==================== 换向流程 ====================
+    // 第一阶段：强制减速到 0
     if (current_speed > 0) {
       int decel_step;
       if (current_speed <= 5) {
@@ -129,13 +125,54 @@ static void handleMotorRamp(bool enable, uint8_t target_pwm, bool target_dir) {
       }
       current_speed -= decel_step;
       if (current_speed < 0) current_speed = 0;
+
+      // 刚开始减速，重置等待状态
+      waitingDirSwitch  = false;
+      dirSwitchWaitTime = 0;
     }
-  }
-  // 方向切换保护（仅在低速时允许改变方向）
-  if (current_speed <= DIR_SWITCH_THRESH) {
-    if (target_dir != current_dir) {
-      current_dir = target_dir;
-      digitalWrite(dir_pin, current_dir ? HIGH : LOW);
+    // 第二阶段：速度已归零，进入等待
+    else {
+      if (!waitingDirSwitch) {
+        // 首次进入等待，记录时间
+        waitingDirSwitch  = true;
+        dirSwitchWaitTime = now;
+      }
+
+      // 等待时间到，切换方向
+      if (now - dirSwitchWaitTime >= DIR_SWITCH_PAUSE_MS) {
+        current_dir = target_dir;
+        digitalWrite(dir_pin, current_dir ? HIGH : LOW);
+        waitingDirSwitch  = false;
+        dirSwitchWaitTime = 0;
+      }
+      // 等待期间保持 current_speed = 0，不加速
+    }
+  } else {
+    // ==================== 方向一致：正常缓启缓停 ====================
+    // 一旦方向相同，清掉等待状态（可能用户在等待期间反悔了）
+    waitingDirSwitch  = false;
+    dirSwitchWaitTime = 0;
+
+    if (enable) {
+      if (current_speed < target_pwm) {
+        current_speed += SPEED_STEP;
+        if (current_speed > target_pwm) current_speed = target_pwm;
+      } else if (current_speed > target_pwm) {
+        current_speed -= SPEED_STEP;
+        if (current_speed < target_pwm) current_speed = target_pwm;
+      }
+    } else {
+      // 减速
+      if (current_speed > 0) {
+        int decel_step;
+        if (current_speed <= 5) {
+          decel_step = 1;
+        } else {
+          decel_step = max(1, current_speed / SPEED_SCALE_FACTOR);
+        }
+        current_speed -= decel_step;
+        if (current_speed < 0) current_speed = 0;
+      }
     }
   }
   // 输出 PWM
@@ -143,14 +180,15 @@ static void handleMotorRamp(bool enable, uint8_t target_pwm, bool target_dir) {
   taskEXIT_CRITICAL(&motor_mutex);
 }
 
+// 急停函数：立即停止电机，无缓启缓停
 void motorEmergencyStop() {
   handleMotorRamp(0, 0, 0);
   ESP_LOGI(TAG, "电机急停");
 }
 
 // 刷新动力灯（方向+斩波）
-static void updateModeLed(bool dirReverse) {
-  uint32_t baseColor = dirReverse ? COLOR_GREEN : COLOR_BLUE;
+static void updateModeLed(bool motorDirection) {
+  uint32_t baseColor = motorDirection ? COLOR_GREEN : COLOR_BLUE;
   if (isChopping) {
     ledSetMode(modeRGB, LED_BLINK, baseColor, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
   } else {
@@ -193,15 +231,15 @@ void motorControl(void* pvParameters) {
     motor_move                 = recvData.data[2];
 
     switch (current_ctrl_mode) {
-    case FOOT_MODE: {                             // motor_move为真时运转
-      bool dirReverse = isDecelButtonLongPressed; // 方向由减速按钮长按决定
+    case FOOT_MODE: {                   // motor_move为真时运转
+      bool dirReverse = motorDirection; // 方向由减速按钮长按决定
       handleMotorRamp(motor_move, target_speed, dirReverse);
       onChopping(motor_move); // 根据是否运转来判断是否需要限流
       updateModeLed(dirReverse);
       break;
     }
-    case CRUISE_MODE: {                           // motor_move为假时运转（即默认转，踩下停止）
-      bool dirReverse = isDecelButtonLongPressed; // 方向由减速按钮长按决定
+    case CRUISE_MODE: {                 // motor_move为假时运转（即默认转，踩下停止）
+      bool dirReverse = motorDirection; // 方向由减速按钮长按决定
       handleMotorRamp(!motor_move, target_speed, dirReverse);
       updateModeLed(dirReverse);
       break;

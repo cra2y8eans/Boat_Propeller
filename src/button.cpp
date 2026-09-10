@@ -16,6 +16,7 @@ static uint8_t       stepSpeed                = 3;     // 当前步进电机转�
 static int8_t        motorSpeed               = 0;     // 当前电机档位，正数表示前进，负数表示后退
 volatile bool        isAccelButtonLongPressed = false; // 加速按钮长按标志位
 volatile bool        isDecelButtonLongPressed = false; // 减速按钮长按标志位
+volatile bool        motorDirection           = false; // 电机正反转标志位
 
 static OneButton accelButton, decelButton;
 
@@ -47,6 +48,11 @@ static void accelButtonShortPressed() { // 加速
     break;
   case FOOT_MODE:
     taskENTER_CRITICAL(&speedMutex);
+    motorDirection = !motorDirection; // 切换电机正反转方向
+    taskEXIT_CRITICAL(&speedMutex);
+    break;
+  case CRUISE_MODE:
+    taskENTER_CRITICAL(&speedMutex);
     stepSpeed = min(stepSpeed + 1, STEP_MAX_SPEED); // 增加档位，最大为5
     taskEXIT_CRITICAL(&speedMutex);
     break;
@@ -64,6 +70,11 @@ static void decelButtonShortPressed() { // 减速
     taskEXIT_CRITICAL(&speedMutex);
     break;
   case FOOT_MODE:
+    taskENTER_CRITICAL(&speedMutex);
+    motorDirection = !motorDirection; // 切换电机正反转方向
+    taskEXIT_CRITICAL(&speedMutex);
+    break;
+  case CRUISE_MODE:
     taskENTER_CRITICAL(&speedMutex);
     stepSpeed = max(stepSpeed - 1, STEP_MIN_SPEED); // 减少档位，最小为1
     taskEXIT_CRITICAL(&speedMutex);

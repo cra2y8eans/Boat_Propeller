@@ -106,11 +106,10 @@ void stepper_control_task(void* pvParameter) {
   uint8_t          lastSpeedLevel = 0;
 
   while (1) {
-    ControlMode       mode       = getCurrentCtrlMode();
-    RecvFromFootPad_t recvData   = getFootPadData(); // 获取脚控数据
-    bool              turnLeft   = recvData.data[0];
-    bool              turnRight  = recvData.data[1];
-    bool              dirReverse = isDecelButtonLongPressed;
+    ControlMode       mode      = getCurrentCtrlMode();
+    RecvFromFootPad_t recvData  = getFootPadData(); // 获取脚控数据
+    bool              turnLeft  = recvData.data[0];
+    bool              turnRight = recvData.data[1];
 
     uint8_t speedLevel = getStepSpeed(); // 1~5
     if (speedLevel != lastSpeedLevel && stepper) {
@@ -122,9 +121,9 @@ void stepper_control_task(void* pvParameter) {
 
     if (mode != HAND_MODE && !isStepperFault) {
       if (turnLeft && !turnRight) {
-        dirReverse ? stepper->runBackward() : stepper->runForward();
+        stepper->runForward(); // 不再判断 dirReverse
       } else if (!turnLeft && turnRight) {
-        dirReverse ? stepper->runForward() : stepper->runBackward();
+        stepper->runBackward(); // 不再判断 dirReverse
       } else {
         stepper->stopMove();
       }

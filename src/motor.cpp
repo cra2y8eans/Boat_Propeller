@@ -148,6 +148,16 @@ void motorEmergencyStop() {
   ESP_LOGI(TAG, "电机急停");
 }
 
+// 刷新动力灯（方向+斩波）
+static void updateModeLed(bool dirReverse) {
+  uint32_t baseColor = dirReverse ? COLOR_GREEN : COLOR_BLUE;
+  if (isChopping) {
+    ledSetMode(modeRGB, LED_BLINK, baseColor, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
+  } else {
+    ledSetMode(modeRGB, LED_ON, baseColor, 0, 0);
+  }
+}
+
 void modeIdentify(void* pvParameters) {
   modeHandle = xTaskGetCurrentTaskHandle();
   attachInterrupt(digitalPinToInterrupt(on_hand_pin), modeChange_ISR, CHANGE);
@@ -177,28 +187,23 @@ void motorControl(void* pvParameters) {
       vTaskDelayUntil(&xLastWakeTime, xPeriod);
       continue;
     }
-    bool              dirReverse;
+
     RecvFromFootPad_t recvData = getFootPadData(); // 获取脚控数据
     target_speed               = map(recvData.speed, 0, 4095, 0, 255);
     motor_move                 = recvData.data[2];
-    dirReverse                 = recvData.data[3]; // 反向
-
-    // modeRGB显示电机旋转方向和是否斩波
-    uint32_t baseColor = dirReverse ? COLOR_GREEN : COLOR_BLUE; // 反转=绿，正转=蓝
-    if (!isChopping) {
-      ledSetMode(modeRGB, LED_ON, baseColor, 0, 0);
-    } else {
-      ledSetMode(modeRGB, LED_BLINK, baseColor, SHORT_FLASH_DURATION, SHORT_FLASH_INTERVAL);
-    }
 
     switch (current_ctrl_mode) {
-    case FOOT_MODE: { // motor_move为真时运转
+    case FOOT_MODE: {                             // motor_move为真时运转
+      bool dirReverse = isDecelButtonLongPressed; // 方向由减速按钮长按决定
       handleMotorRamp(motor_move, target_speed, dirReverse);
       onChopping(motor_move); // 根据是否运转来判断是否需要限流
+      updateModeLed(dirReverse);
       break;
     }
-    case CRUISE_MODE: { // motor_move为假时运转（即默认转，踩下停止）
+    case CRUISE_MODE: {                           // motor_move为假时运转（即默认转，踩下停止）
+      bool dirReverse = isDecelButtonLongPressed; // 方向由减速按钮长按决定
       handleMotorRamp(!motor_move, target_speed, dirReverse);
+      updateModeLed(dirReverse);
       break;
     }
     case HAND_MODE: {
@@ -229,10 +234,12 @@ void motorControl(void* pvParameters) {
         target_dir        = true; // 反转方向
       }
       handleMotorRamp(enable, target_pwm, target_dir);
+      updateModeLed(target_dir); // 方向来自档位正负号
       break;
     }
     case STANDBY_MODE:             // 待机模式：电机不转，步进电机也不工作
       ledcWrite(motor_channel, 0); // 停止电机
+      // 保持动力灯现状，不修改
       break;
     default:
       break;

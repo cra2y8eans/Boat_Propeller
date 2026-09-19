@@ -41,6 +41,7 @@ void IRAM_ATTR modeChange_ISR() {
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
+// 系统启动时读取模式
 ControlMode readModeWhenSystemStart() {
   int readHand_1 = digitalRead(on_hand_pin);
   int readFoot_1 = digitalRead(on_foot_pin);
